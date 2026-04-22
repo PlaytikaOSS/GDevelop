@@ -1,24 +1,24 @@
-# Manual build of the GDevelop desktop editor (Windows).
+# Build the GDevelop desktop editor for Windows and macOS in parallel.
 #
-# Two-stage pipeline mirroring the upstream CircleCI setup:
+# Pipeline:
 #   1) build-gdevelop-js (Linux): compiles GDevelop.js (libGD.js / libGD.wasm)
-#      with Emscripten. Exact recipe from .travis.yml / .circleci/config.yml
-#      (build-gdevelop_js-wasm-only job).
-#   2) build-editor-windows: downloads the freshly built libGD.js artifact,
-#      places it so newIDE/app/scripts/import-libGD.js picks it up as a local
-#      build, then runs electron-builder via `npm run build`.
+#      with Emscripten — same pin as .travis.yml / CircleCI (emsdk 3.1.21).
+#   2) build-editor-windows + build-editor-macos (parallel): each job downloads
+#      the libGD-js artifact, places it under Binaries/embuild/GDevelop.js so
+#      newIDE/app/scripts/import-libGD.js uses the local-build path, installs
+#      a minimal shelljs in GDevelop.js/ for copy-to-newIDE.js, then runs
+#      electron-builder (Windows: default targets; macOS: --mac).
 #
 # Not intended to be merged to master — lives on the `ci-editor-build` branch
-# only so upstream sync is not disturbed.
+# only so upstream sync is not disturbed. Triggers: workflow_dispatch + push
+# to ci-editor-build (push is required because workflow_dispatch alone does
+# not register until the workflow file exists on the default branch).
 
-name: Build Editor (Windows)
+name: Build Editor (Windows & macOS)
 
 on:
   workflow_dispatch:
-  # The workflow file is not merged to the default branch (to keep upstream
-  # sync clean), so `workflow_dispatch` alone would not register in the UI.
-  # A `push` trigger on this branch makes the workflow visible and runs it
-  # automatically on every push to it.
+  # See header comment: push keeps the workflow visible without merging to default.
   push:
     branches:
       - ci-editor-build
