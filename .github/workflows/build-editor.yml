@@ -15,6 +15,13 @@ name: Build Editor (Windows)
 
 on:
   workflow_dispatch:
+  # The workflow file is not merged to the default branch (to keep upstream
+  # sync clean), so `workflow_dispatch` alone would not register in the UI.
+  # A `push` trigger on this branch makes the workflow visible and runs it
+  # automatically on every push to it.
+  push:
+    branches:
+      - ci-editor-build
 
 # Emscripten SDK version is pinned everywhere in the project.
 env:
