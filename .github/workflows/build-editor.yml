@@ -65,16 +65,21 @@ jobs:
           npm run build
         working-directory: GDevelop.js
 
-      # Only libGD.js and libGD.wasm are needed to build the editor.
-      # The Windows job will drop them into Binaries/embuild/GDevelop.js so
-      # import-libGD.js treats them as a "locally built" copy.
+      # Stage libGD.js and libGD.wasm into a dedicated folder so the artifact
+      # archive is guaranteed to contain them at its root (no LCA ambiguity
+      # from actions/upload-artifact@v4 with multiple absolute-ish paths).
+      - name: Stage libGD artifact
+        run: |
+          mkdir -p libGD-artifact
+          cp Binaries/embuild/GDevelop.js/libGD.js  libGD-artifact/
+          cp Binaries/embuild/GDevelop.js/libGD.wasm libGD-artifact/
+          ls -la libGD-artifact/
+
       - name: Upload libGD.js artifact
         uses: actions/upload-artifact@v4
         with:
           name: libGD-js
-          path: |
-            Binaries/embuild/GDevelop.js/libGD.js
-            Binaries/embuild/GDevelop.js/libGD.wasm
+          path: libGD-artifact/
           retention-days: 90
           if-no-files-found: error
 
@@ -118,9 +123,26 @@ jobs:
           name: libGD-js
           path: Binaries/embuild/GDevelop.js
 
+      - name: Verify downloaded libGD.js
+        shell: pwsh
+        run: |
+          Get-ChildItem -Recurse Binaries/embuild/GDevelop.js
+          if (-not (Test-Path Binaries/embuild/GDevelop.js/libGD.js))  { throw "libGD.js missing after artifact download" }
+          if (-not (Test-Path Binaries/embuild/GDevelop.js/libGD.wasm)) { throw "libGD.wasm missing after artifact download" }
+
       - name: Install newIDE/app dependencies
         run: npm install
         working-directory: newIDE/app
+
+      # import-libGD.js silently ignores copy-to-newIDE.js failures (it runs
+      # the script via shell.exec without checking the exit code). Verify
+      # explicitly that libGD.js has actually landed in newIDE/app/public/.
+      - name: Verify libGD.js landed in newIDE/app/public
+        shell: pwsh
+        run: |
+          if (-not (Test-Path newIDE/app/public/libGD.js))  { throw "libGD.js was not copied to newIDE/app/public" }
+          if (-not (Test-Path newIDE/app/public/libGD.wasm)) { throw "libGD.wasm was not copied to newIDE/app/public" }
+          Get-ChildItem newIDE/app/public/libGD.*
 
       - name: Install newIDE/electron-app dependencies
         run: npm install
