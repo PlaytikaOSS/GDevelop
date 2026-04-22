@@ -147,11 +147,13 @@ jobs:
         run: npm run build -- --publish=never
         working-directory: newIDE/electron-app
 
+      # Ship only the NSIS installer (e.g. "GDevelop 5 Setup 5.6.266.exe"),
+      # not the unpacked win-unpacked/ tree or auxiliary files.
       - name: Upload editor artifacts
         uses: actions/upload-artifact@v4
         with:
           name: gdevelop-editor-windows
-          path: newIDE/electron-app/dist/**
+          path: newIDE/electron-app/dist/*Setup*.exe
           retention-days: 90
           if-no-files-found: error
 
@@ -215,15 +217,13 @@ jobs:
         run: npm run build -- --mac --publish=never
         working-directory: newIDE/electron-app
 
-      # The unpacked .app bundle inside mac-universal/ is already shipped inside
-      # the .dmg/.zip; dropping it roughly halves the artifact size.
-      - name: Clean unpacked .app from dist
-        run: rm -rf "newIDE/electron-app/dist/mac-universal/GDevelop 5.app"
-
+      # Ship only the .dmg installer (universal build); skip the unpacked .app
+      # bundle in mac-universal/ and the auxiliary .zip that electron-builder
+      # emits next to the .dmg.
       - name: Upload editor artifacts
         uses: actions/upload-artifact@v4
         with:
           name: gdevelop-editor-macos
-          path: newIDE/electron-app/dist/**
+          path: newIDE/electron-app/dist/*.dmg
           retention-days: 90
           if-no-files-found: error
