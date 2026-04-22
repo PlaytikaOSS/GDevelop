@@ -1,0 +1,135 @@
+# Manual build of the GDevelop desktop editor (Windows).
+#
+# Two-stage pipeline mirroring the upstream CircleCI setup:
+#   1) build-gdevelop-js (Linux): compiles GDevelop.js (libGD.js / libGD.wasm)
+#      with Emscripten. Exact recipe from .travis.yml / .circleci/config.yml
+#      (build-gdevelop_js-wasm-only job).
+#   2) build-editor-windows: downloads the freshly built libGD.js artifact,
+#      places it so newIDE/app/scripts/import-libGD.js picks it up as a local
+#      build, then runs electron-builder via `npm run build`.
+#
+# Not intended to be merged to master — lives on the `ci-editor-build` branch
+# only so upstream sync is not disturbed.
+
+name: Build Editor (Windows)
+
+on:
+  workflow_dispatch:
+
+# Emscripten SDK version is pinned everywhere in the project.
+env:
+  EMSDK_VERSION: "3.1.21"
+
+jobs:
+  build-gdevelop-js:
+    name: Build GDevelop.js (Linux)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install system build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake p7zip-full libstdc++-14-dev
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 16
+          cache: npm
+          cache-dependency-path: GDevelop.js/package-lock.json
+
+      - name: Install Emscripten ${{ env.EMSDK_VERSION }}
+        run: |
+          git clone --depth 1 --branch ${{ env.EMSDK_VERSION }} https://github.com/juj/emsdk.git
+          cd emsdk
+          ./emsdk install ${{ env.EMSDK_VERSION }}
+          ./emsdk activate ${{ env.EMSDK_VERSION }}
+
+      - name: Install GDevelop.js npm deps
+        run: npm install
+        working-directory: GDevelop.js
+
+      - name: Build GDevelop.js
+        shell: bash
+        run: |
+          source ../emsdk/emsdk_env.sh
+          npm run build
+        working-directory: GDevelop.js
+
+      # Only libGD.js and libGD.wasm are needed to build the editor.
+      # The Windows job will drop them into Binaries/embuild/GDevelop.js so
+      # import-libGD.js treats them as a "locally built" copy.
+      - name: Upload libGD.js artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libGD-js
+          path: |
+            Binaries/embuild/GDevelop.js/libGD.js
+            Binaries/embuild/GDevelop.js/libGD.wasm
+          retention-days: 90
+          if-no-files-found: error
+
+  build-editor-windows:
+    name: Build Editor (Windows)
+    needs: build-gdevelop-js
+    runs-on: windows-latest
+    env:
+      # React production build runs out of heap without a larger Node heap.
+      NODE_OPTIONS: --max-old-space-size=8192
+      # Force import-libGD.js to fail instead of silently falling back to
+      # master/latest on S3 if our locally-placed libGD.js is missing.
+      REQUIRES_EXACT_LIBGD_JS_VERSION: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 16
+          cache: npm
+          cache-dependency-path: |
+            newIDE/app/package-lock.json
+            newIDE/electron-app/package-lock.json
+            newIDE/electron-app/app/package-lock.json
+
+      # Python 3.12 removed distutils; some native deps pulled by electron-app
+      # still require it. setuptools puts distutils back.
+      - name: Install setuptools (provides distutils)
+        run: pip install setuptools
+
+      # Landing the files at Binaries/embuild/GDevelop.js/ makes
+      # newIDE/app/scripts/import-libGD.js take the "local build" branch and
+      # copy them via GDevelop.js/scripts/copy-to-newIDE.js into
+      # newIDE/app/public + newIDE/app/node_modules/libGD.js-for-tests-only.
+      - name: Download libGD.js artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: libGD-js
+          path: Binaries/embuild/GDevelop.js
+
+      - name: Install newIDE/app dependencies
+        run: npm install
+        working-directory: newIDE/app
+
+      - name: Install newIDE/electron-app dependencies
+        run: npm install
+        working-directory: newIDE/electron-app
+
+      # `--publish=never` prevents electron-builder from attempting to publish
+      # to GitHub releases (configured in electron-builder-config.js).
+      # No GD_SIGNTOOL_* envs set -> unsigned Windows build.
+      - name: Build editor (electron-builder)
+        run: npm run build -- --publish=never
+        working-directory: newIDE/electron-app
+
+      - name: Upload editor artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: gdevelop-editor-windows
+          path: newIDE/electron-app/dist/**
+          retention-days: 90
+          if-no-files-found: error
