@@ -130,6 +130,15 @@ jobs:
           if (-not (Test-Path Binaries/embuild/GDevelop.js/libGD.js))  { throw "libGD.js missing after artifact download" }
           if (-not (Test-Path Binaries/embuild/GDevelop.js/libGD.wasm)) { throw "libGD.wasm missing after artifact download" }
 
+      # newIDE/app/scripts/import-libGD.js detects the files above and takes the
+      # "local build" branch, which shells out to GDevelop.js/scripts/copy-to-newIDE.js.
+      # That script `require('shelljs')` — but GDevelop.js/node_modules is empty on
+      # this runner (we don't build GDevelop.js here). Install only shelljs, quickly,
+      # so the copy step succeeds.
+      - name: Install shelljs for GDevelop.js copy script
+        run: npm install shelljs --no-save --no-package-lock
+        working-directory: GDevelop.js
+
       - name: Install newIDE/app dependencies
         run: npm install
         working-directory: newIDE/app
