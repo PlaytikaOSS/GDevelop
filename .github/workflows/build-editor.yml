@@ -154,3 +154,76 @@ jobs:
           path: newIDE/electron-app/dist/**
           retention-days: 90
           if-no-files-found: error
+
+  build-editor-macos:
+    name: Build Editor (macOS)
+    needs: build-gdevelop-js
+    runs-on: macos-latest
+    env:
+      # Mirrors the upstream CircleCI macOS build env.
+      NODE_OPTIONS: --max-old-space-size=7168
+      # Skip Keychain code-signing lookup; no Developer ID cert on the runner.
+      # electron-builder-after-sign.js bails out when APPLEID is unset, so
+      # notarization is skipped automatically as well.
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      # Prevent CRA (react-scripts build) from treating warnings as errors
+      # when the CI env var is auto-set to true on GitHub Actions.
+      CI: "false"
+      # Force import-libGD.js to fail instead of silently falling back to
+      # master/latest on S3 if our locally-placed libGD.js is missing.
+      REQUIRES_EXACT_LIBGD_JS_VERSION: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 16
+          cache: npm
+          cache-dependency-path: |
+            newIDE/app/package-lock.json
+            newIDE/electron-app/package-lock.json
+            newIDE/electron-app/app/package-lock.json
+
+      # libGD.js / libGD.wasm are platform-independent (WebAssembly), so the
+      # Linux-built artifact is reused as-is on macOS.
+      - name: Download libGD.js artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: libGD-js
+          path: Binaries/embuild/GDevelop.js
+
+      # See the Windows job for the rationale.
+      - name: Install shelljs for GDevelop.js copy script
+        run: npm install shelljs --no-save --no-package-lock
+        working-directory: GDevelop.js
+
+      - name: Install newIDE/app dependencies
+        run: npm install
+        working-directory: newIDE/app
+
+      - name: Install newIDE/electron-app dependencies
+        run: npm install
+        working-directory: newIDE/electron-app
+
+      # `--mac` drives electron-builder to build macOS targets from the config
+      # (universal .dmg + .zip per electron-builder-config.js).
+      # `--publish=never` keeps electron-builder from trying to upload a release.
+      - name: Build editor (electron-builder)
+        run: npm run build -- --mac --publish=never
+        working-directory: newIDE/electron-app
+
+      # The unpacked .app bundle inside mac-universal/ is already shipped inside
+      # the .dmg/.zip; dropping it roughly halves the artifact size.
+      - name: Clean unpacked .app from dist
+        run: rm -rf "newIDE/electron-app/dist/mac-universal/GDevelop 5.app"
+
+      - name: Upload editor artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: gdevelop-editor-macos
+          path: newIDE/electron-app/dist/**
+          retention-days: 90
+          if-no-files-found: error
