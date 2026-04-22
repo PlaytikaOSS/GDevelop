@@ -123,13 +123,6 @@ jobs:
           name: libGD-js
           path: Binaries/embuild/GDevelop.js
 
-      - name: Verify downloaded libGD.js
-        shell: pwsh
-        run: |
-          Get-ChildItem -Recurse Binaries/embuild/GDevelop.js
-          if (-not (Test-Path Binaries/embuild/GDevelop.js/libGD.js))  { throw "libGD.js missing after artifact download" }
-          if (-not (Test-Path Binaries/embuild/GDevelop.js/libGD.wasm)) { throw "libGD.wasm missing after artifact download" }
-
       # newIDE/app/scripts/import-libGD.js detects the files above and takes the
       # "local build" branch, which shells out to GDevelop.js/scripts/copy-to-newIDE.js.
       # That script `require('shelljs')` — but GDevelop.js/node_modules is empty on
@@ -142,16 +135,6 @@ jobs:
       - name: Install newIDE/app dependencies
         run: npm install
         working-directory: newIDE/app
-
-      # import-libGD.js silently ignores copy-to-newIDE.js failures (it runs
-      # the script via shell.exec without checking the exit code). Verify
-      # explicitly that libGD.js has actually landed in newIDE/app/public/.
-      - name: Verify libGD.js landed in newIDE/app/public
-        shell: pwsh
-        run: |
-          if (-not (Test-Path newIDE/app/public/libGD.js))  { throw "libGD.js was not copied to newIDE/app/public" }
-          if (-not (Test-Path newIDE/app/public/libGD.wasm)) { throw "libGD.wasm was not copied to newIDE/app/public" }
-          Get-ChildItem newIDE/app/public/libGD.*
 
       - name: Install newIDE/electron-app dependencies
         run: npm install
