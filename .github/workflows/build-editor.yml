@@ -1,27 +1,58 @@
-# Build the GDevelop desktop editor for Windows and macOS in parallel.
+# Build the GDevelop desktop editor for Windows and/or macOS on demand from any
+# ref in this repository.
 #
 # Pipeline:
 #   1) build-gdevelop-js (Linux): compiles GDevelop.js (libGD.js / libGD.wasm)
-#      with Emscripten — same pin as .travis.yml / CircleCI (emsdk 3.1.21).
-#   2) build-editor-windows + build-editor-macos (parallel): each job downloads
-#      the libGD-js artifact, places it under Binaries/embuild/GDevelop.js so
-#      newIDE/app/scripts/import-libGD.js uses the local-build path, installs
+#      with Emscripten - same pin as .travis.yml / CircleCI (emsdk 3.1.21).
+#      Also computes the build version = <upstream>-beta.<run_number>.
+#   2) build-editor-windows and/or build-editor-macos (parallel, gated by
+#      inputs.build_windows / inputs.build_macos): each job downloads the
+#      libGD-js artifact, places it under Binaries/embuild/GDevelop.js so
+#      newIDE/app/scripts/import-libGD.js uses the local-build path, stamps
+#      the build version into newIDE/electron-app/app/package.json, installs
 #      a minimal shelljs in GDevelop.js/ for copy-to-newIDE.js, then runs
 #      electron-builder (Windows: default targets; macOS: --mac).
 #
-# Not intended to be merged to master — lives on the `ci-editor-build` branch
-# only so upstream sync is not disturbed. Triggers: workflow_dispatch + push
-# to ci-editor-build (push is required because workflow_dispatch alone does
-# not register until the workflow file exists on the default branch).
+# Inputs (workflow_dispatch):
+#   - source_ref    : any branch/tag/SHA in this repo, used for all checkouts.
+#                     The workflow YAML itself is always read from the ref the
+#                     workflow is dispatched on (ci-editor-build); source_ref
+#                     decides what code we actually build.
+#   - build_windows : run the Windows job (default true).
+#   - build_macos   : run the macOS job (default true).
+#   - dryRun        : skip heavy steps (emsdk, libGD build, npm installs,
+#                     electron-builder, artifact upload) to exercise only
+#                     workflow orchestration. Default false.
+#
+# Not intended to be merged to master - lives on the `ci-editor-build` branch
+# only so upstream sync is not disturbed. The workflow is triggered exclusively
+# via workflow_dispatch.
 
 name: Build Editor (Windows & macOS)
 
 on:
   workflow_dispatch:
-  # See header comment: push keeps the workflow visible without merging to default.
-  push:
-    branches:
-      - ci-editor-build
+    inputs:
+      source_ref:
+        description: "Branch / tag / SHA to build (any ref in this repo)"
+        required: true
+        type: string
+        default: ci-editor-build
+      build_windows:
+        description: "Build Windows installer"
+        required: false
+        type: boolean
+        default: true
+      build_macos:
+        description: "Build macOS installer"
+        required: false
+        type: boolean
+        default: true
+      dryRun:
+        description: "Skip heavy steps (libGD / electron-builder / upload); run only orchestration"
+        required: false
+        type: boolean
+        default: false
 
 # Emscripten SDK version is pinned everywhere in the project.
 env:
@@ -30,13 +61,32 @@ env:
 jobs:
   build-gdevelop-js:
     name: Build GDevelop.js (Linux)
+    # Skip entirely if the user unchecked both platforms - nothing would consume libGD.
+    if: ${{ fromJSON(inputs.build_windows) || fromJSON(inputs.build_macos) }}
     runs-on: ubuntu-24.04
+    outputs:
+      build_version: ${{ steps.version.outputs.value }}
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.source_ref }}
           fetch-depth: 1
 
+      # Version format: <upstream>-beta.<github.run_number>. Upstream base is read
+      # from newIDE/electron-app/app/package.json of the checked-out source_ref.
+      # This step is intentionally cheap and always runs (even in dryRun mode) so
+      # downstream jobs can consume the output for validation.
+      - name: Compute build version
+        id: version
+        shell: bash
+        run: |
+          base=$(node -p "require('./newIDE/electron-app/app/package.json').version")
+          value="${base}-beta.${{ github.run_number }}"
+          echo "value=${value}" >> "$GITHUB_OUTPUT"
+          echo "Build version: ${value}"
+
       - name: Install system build deps
+        if: ${{ !fromJSON(inputs.dryRun) }}
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake p7zip-full libstdc++-14-dev
@@ -48,6 +98,7 @@ jobs:
           cache-dependency-path: GDevelop.js/package-lock.json
 
       - name: Install Emscripten ${{ env.EMSDK_VERSION }}
+        if: ${{ !fromJSON(inputs.dryRun) }}
         run: |
           git clone --depth 1 --branch ${{ env.EMSDK_VERSION }} https://github.com/juj/emsdk.git
           cd emsdk
@@ -55,10 +106,12 @@ jobs:
           ./emsdk activate ${{ env.EMSDK_VERSION }}
 
       - name: Install GDevelop.js npm deps
+        if: ${{ !fromJSON(inputs.dryRun) }}
         run: npm install
         working-directory: GDevelop.js
 
       - name: Build GDevelop.js
+        if: ${{ !fromJSON(inputs.dryRun) }}
         shell: bash
         run: |
           source ../emsdk/emsdk_env.sh
@@ -69,6 +122,7 @@ jobs:
       # archive is guaranteed to contain them at its root (no LCA ambiguity
       # from actions/upload-artifact@v4 with multiple absolute-ish paths).
       - name: Stage libGD artifact
+        if: ${{ !fromJSON(inputs.dryRun) }}
         run: |
           mkdir -p libGD-artifact
           cp Binaries/embuild/GDevelop.js/libGD.js  libGD-artifact/
@@ -76,6 +130,7 @@ jobs:
           ls -la libGD-artifact/
 
       - name: Upload libGD.js artifact
+        if: ${{ !fromJSON(inputs.dryRun) }}
         uses: actions/upload-artifact@v4
         with:
           name: libGD-js
@@ -83,8 +138,19 @@ jobs:
           retention-days: 90
           if-no-files-found: error
 
+      - name: Dry-run summary
+        if: ${{ fromJSON(inputs.dryRun) }}
+        shell: bash
+        run: |
+          echo "DRY RUN: skipped libGD compile and upload."
+          echo "  source_ref    = ${{ inputs.source_ref }}"
+          echo "  build_version = ${{ steps.version.outputs.value }}"
+          echo "  build_windows = ${{ inputs.build_windows }}"
+          echo "  build_macos   = ${{ inputs.build_macos }}"
+
   build-editor-windows:
     name: Build Editor (Windows)
+    if: ${{ fromJSON(inputs.build_windows) }}
     needs: build-gdevelop-js
     runs-on: windows-latest
     env:
@@ -97,6 +163,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.source_ref }}
           fetch-depth: 1
 
       - uses: actions/setup-node@v4
@@ -111,6 +178,7 @@ jobs:
       # Python 3.12 removed distutils; some native deps pulled by electron-app
       # still require it. setuptools puts distutils back.
       - name: Install setuptools (provides distutils)
+        if: ${{ !fromJSON(inputs.dryRun) }}
         run: pip install setuptools
 
       # Landing the files at Binaries/embuild/GDevelop.js/ makes
@@ -118,6 +186,7 @@ jobs:
       # copy them via GDevelop.js/scripts/copy-to-newIDE.js into
       # newIDE/app/public + newIDE/app/node_modules/libGD.js-for-tests-only.
       - name: Download libGD.js artifact
+        if: ${{ !fromJSON(inputs.dryRun) }}
         uses: actions/download-artifact@v4
         with:
           name: libGD-js
@@ -125,40 +194,66 @@ jobs:
 
       # newIDE/app/scripts/import-libGD.js detects the files above and takes the
       # "local build" branch, which shells out to GDevelop.js/scripts/copy-to-newIDE.js.
-      # That script `require('shelljs')` — but GDevelop.js/node_modules is empty on
+      # That script `require('shelljs')` - but GDevelop.js/node_modules is empty on
       # this runner (we don't build GDevelop.js here). Install only shelljs, quickly,
       # so the copy step succeeds.
       - name: Install shelljs for GDevelop.js copy script
+        if: ${{ !fromJSON(inputs.dryRun) }}
         run: npm install shelljs --no-save --no-package-lock
         working-directory: GDevelop.js
 
       - name: Install newIDE/app dependencies
+        if: ${{ !fromJSON(inputs.dryRun) }}
         run: npm install
         working-directory: newIDE/app
 
       - name: Install newIDE/electron-app dependencies
+        if: ${{ !fromJSON(inputs.dryRun) }}
         run: npm install
         working-directory: newIDE/electron-app
+
+      # electron-builder reads version from newIDE/electron-app/app/package.json
+      # (directories.app = 'app' in electron-builder-config.js). Overwrite in-place
+      # on the runner; no commit is made back to the repo.
+      - name: Stamp build version
+        if: ${{ !fromJSON(inputs.dryRun) }}
+        shell: bash
+        env:
+          BUILD_VERSION: ${{ needs.build-gdevelop-js.outputs.build_version }}
+        run: |
+          node -e "const f='newIDE/electron-app/app/package.json';const p=require('./'+f);p.version=process.env.BUILD_VERSION;require('fs').writeFileSync(f, JSON.stringify(p,null,2)+'\n')"
+          echo "Stamped version: $BUILD_VERSION"
 
       # `--publish=never` prevents electron-builder from attempting to publish
       # to GitHub releases (configured in electron-builder-config.js).
       # No GD_SIGNTOOL_* envs set -> unsigned Windows build.
       - name: Build editor (electron-builder)
+        if: ${{ !fromJSON(inputs.dryRun) }}
         run: npm run build -- --publish=never
         working-directory: newIDE/electron-app
 
-      # Ship only the NSIS installer (e.g. "GDevelop 5 Setup 5.6.266.exe"),
+      # Ship only the NSIS installer (e.g. "GDevelop 5 Setup 5.6.266-beta.42.exe"),
       # not the unpacked win-unpacked/ tree or auxiliary files.
       - name: Upload editor artifacts
+        if: ${{ !fromJSON(inputs.dryRun) }}
         uses: actions/upload-artifact@v4
         with:
-          name: gdevelop-editor-windows
+          name: gdevelop-editor-windows-${{ needs.build-gdevelop-js.outputs.build_version }}
           path: newIDE/electron-app/dist/*Setup*.exe
           retention-days: 90
           if-no-files-found: error
 
+      - name: Dry-run summary
+        if: ${{ fromJSON(inputs.dryRun) }}
+        shell: bash
+        run: |
+          echo "DRY RUN (Windows): skipped installs, stamp, electron-builder and upload."
+          echo "  source_ref    = ${{ inputs.source_ref }}"
+          echo "  build_version = ${{ needs.build-gdevelop-js.outputs.build_version }}"
+
   build-editor-macos:
     name: Build Editor (macOS)
+    if: ${{ fromJSON(inputs.build_macos) }}
     needs: build-gdevelop-js
     runs-on: macos-latest
     env:
@@ -178,6 +273,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.source_ref }}
           fetch-depth: 1
 
       - uses: actions/setup-node@v4
@@ -192,6 +288,7 @@ jobs:
       # libGD.js / libGD.wasm are platform-independent (WebAssembly), so the
       # Linux-built artifact is reused as-is on macOS.
       - name: Download libGD.js artifact
+        if: ${{ !fromJSON(inputs.dryRun) }}
         uses: actions/download-artifact@v4
         with:
           name: libGD-js
@@ -199,21 +296,35 @@ jobs:
 
       # See the Windows job for the rationale.
       - name: Install shelljs for GDevelop.js copy script
+        if: ${{ !fromJSON(inputs.dryRun) }}
         run: npm install shelljs --no-save --no-package-lock
         working-directory: GDevelop.js
 
       - name: Install newIDE/app dependencies
+        if: ${{ !fromJSON(inputs.dryRun) }}
         run: npm install
         working-directory: newIDE/app
 
       - name: Install newIDE/electron-app dependencies
+        if: ${{ !fromJSON(inputs.dryRun) }}
         run: npm install
         working-directory: newIDE/electron-app
+
+      # See the Windows job for the rationale.
+      - name: Stamp build version
+        if: ${{ !fromJSON(inputs.dryRun) }}
+        shell: bash
+        env:
+          BUILD_VERSION: ${{ needs.build-gdevelop-js.outputs.build_version }}
+        run: |
+          node -e "const f='newIDE/electron-app/app/package.json';const p=require('./'+f);p.version=process.env.BUILD_VERSION;require('fs').writeFileSync(f, JSON.stringify(p,null,2)+'\n')"
+          echo "Stamped version: $BUILD_VERSION"
 
       # `--mac` drives electron-builder to build macOS targets from the config
       # (universal .dmg + .zip per electron-builder-config.js).
       # `--publish=never` keeps electron-builder from trying to upload a release.
       - name: Build editor (electron-builder)
+        if: ${{ !fromJSON(inputs.dryRun) }}
         run: npm run build -- --mac --publish=never
         working-directory: newIDE/electron-app
 
@@ -221,9 +332,18 @@ jobs:
       # bundle in mac-universal/ and the auxiliary .zip that electron-builder
       # emits next to the .dmg.
       - name: Upload editor artifacts
+        if: ${{ !fromJSON(inputs.dryRun) }}
         uses: actions/upload-artifact@v4
         with:
-          name: gdevelop-editor-macos
+          name: gdevelop-editor-macos-${{ needs.build-gdevelop-js.outputs.build_version }}
           path: newIDE/electron-app/dist/*.dmg
           retention-days: 90
           if-no-files-found: error
+
+      - name: Dry-run summary
+        if: ${{ fromJSON(inputs.dryRun) }}
+        shell: bash
+        run: |
+          echo "DRY RUN (macOS): skipped installs, stamp, electron-builder and upload."
+          echo "  source_ref    = ${{ inputs.source_ref }}"
+          echo "  build_version = ${{ needs.build-gdevelop-js.outputs.build_version }}"
