@@ -1,5 +1,5 @@
 # Build the GDevelop desktop editor and publish a GitHub prerelease on every
-# push to ci-editor-build.
+# push to release/beta-editor.
 #
 # Pipeline:
 #   1) build-gdevelop-js (Linux): compiles GDevelop.js (libGD.js / libGD.wasm)
@@ -19,8 +19,8 @@
 #
 # Heavy steps (emsdk, libGD build, npm installs, electron-builder, release
 # creation, installer upload) are gated by the DRY_RUN env below. Default is
-# "true" so pushes during workflow experimentation do not burn full CI
-# minutes and do not create releases. Flip DRY_RUN to "false" when ready.
+# "false" on this branch so every push produces installers and a prerelease.
+# Set DRY_RUN to "true" temporarily to exercise the workflow without building.
 #
 # Concurrency: rapid consecutive pushes cancel in-flight runs for the same
 # branch - the newest push is what we want to ship.
@@ -28,17 +28,17 @@
 # Required permissions: contents: write (create tags, releases, upload
 # assets). Provided by the default GITHUB_TOKEN on the fork; no PAT needed.
 #
-# Not intended to be merged to master - lives on the `ci-editor-build` branch
-# only so upstream sync is not disturbed. Since workflow_dispatch is not
-# available for workflows that do not exist on the default branch, the only
-# trigger is push to ci-editor-build.
+# Not intended to be merged to master - lives on the `release/beta-editor`
+# branch only so upstream sync is not disturbed. Since workflow_dispatch is
+# not available for workflows that do not exist on the default branch, the
+# only trigger is push to release/beta-editor.
 
 name: Build Editor (Windows & macOS)
 
 on:
   push:
     branches:
-      - ci-editor-build
+      - release/beta-editor
 
 concurrency:
   group: build-editor-${{ github.ref }}
@@ -54,7 +54,7 @@ env:
   # only exercises orchestration (checkouts, version compute, summary steps).
   # Releases are also skipped. Change to "false" to produce real installers
   # and publish the prerelease.
-  DRY_RUN: "true"
+  DRY_RUN: "false"
 
 jobs:
   build-gdevelop-js:
