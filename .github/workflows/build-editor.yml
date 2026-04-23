@@ -1,21 +1,32 @@
-# Build the GDevelop desktop editor for Windows and macOS on every push to
-# ci-editor-build.
+# Build the GDevelop desktop editor and publish a GitHub prerelease on every
+# push to ci-editor-build.
 #
 # Pipeline:
 #   1) build-gdevelop-js (Linux): compiles GDevelop.js (libGD.js / libGD.wasm)
 #      with Emscripten - same pin as .travis.yml / CircleCI (emsdk 3.1.21).
 #      Also computes the build version = <upstream>-beta.<run_number>.
-#   2) build-editor-windows + build-editor-macos (parallel): each job downloads
-#      the libGD-js artifact, places it under Binaries/embuild/GDevelop.js so
-#      newIDE/app/scripts/import-libGD.js uses the local-build path, stamps
-#      the build version into newIDE/electron-app/app/package.json, installs
-#      a minimal shelljs in GDevelop.js/ for copy-to-newIDE.js, then runs
-#      electron-builder (Windows: default targets; macOS: --mac).
+#   2) prepare-release (Linux): creates an empty GitHub prerelease tagged
+#      v<build_version> with auto-generated release notes (changelog vs the
+#      previous release on this repo). Idempotent.
+#   3) build-editor-windows + build-editor-macos (parallel): each job
+#      downloads the libGD-js artifact, places it under Binaries/embuild/
+#      GDevelop.js so newIDE/app/scripts/import-libGD.js uses the local-build
+#      path, stamps the build version into newIDE/electron-app/app/
+#      package.json, installs a minimal shelljs in GDevelop.js/ for
+#      copy-to-newIDE.js, then runs electron-builder (Windows: default
+#      targets; macOS: --mac). Installers are uploaded directly to the
+#      prerelease (no standalone workflow artifacts are kept).
 #
-# Heavy steps (emsdk, libGD build, npm installs, electron-builder, artifact
-# upload) are gated by the DRY_RUN env below. Default is "true" so pushes
-# during workflow experimentation do not burn full CI minutes. Flip DRY_RUN
-# to "false" when ready to actually produce installers.
+# Heavy steps (emsdk, libGD build, npm installs, electron-builder, release
+# creation, installer upload) are gated by the DRY_RUN env below. Default is
+# "true" so pushes during workflow experimentation do not burn full CI
+# minutes and do not create releases. Flip DRY_RUN to "false" when ready.
+#
+# Concurrency: rapid consecutive pushes cancel in-flight runs for the same
+# branch - the newest push is what we want to ship.
+#
+# Required permissions: contents: write (create tags, releases, upload
+# assets). Provided by the default GITHUB_TOKEN on the fork; no PAT needed.
 #
 # Not intended to be merged to master - lives on the `ci-editor-build` branch
 # only so upstream sync is not disturbed. Since workflow_dispatch is not
@@ -29,12 +40,20 @@ on:
     branches:
       - ci-editor-build
 
+concurrency:
+  group: build-editor-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
 env:
   # Emscripten SDK version is pinned everywhere in the project.
   EMSDK_VERSION: "3.1.21"
   # Global toggle: when "true", every heavy step is skipped so the workflow
   # only exercises orchestration (checkouts, version compute, summary steps).
-  # Change to "false" to produce real editor installers.
+  # Releases are also skipped. Change to "false" to produce real installers
+  # and publish the prerelease.
   DRY_RUN: "true"
 
 jobs:
@@ -122,9 +141,50 @@ jobs:
           echo "DRY RUN: skipped libGD compile and upload."
           echo "  build_version = ${{ steps.version.outputs.value }}"
 
+  # Create an empty prerelease up-front so the two parallel platform jobs can
+  # both `gh release upload` onto an existing tag without racing on creation.
+  # Job-level `if:` cannot reference workflow-level env, so the DRY_RUN guard
+  # lives on the steps below - the runner still spins up (~15s) in dry-run but
+  # does nothing.
+  prepare-release:
+    name: Prepare GitHub prerelease
+    needs: build-gdevelop-js
+    runs-on: ubuntu-latest
+    steps:
+      # fetch-depth: 0 so `--generate-notes` can diff against the previous
+      # release for a meaningful changelog.
+      - uses: actions/checkout@v4
+        if: ${{ env.DRY_RUN != 'true' }}
+        with:
+          fetch-depth: 0
+
+      - name: Create empty prerelease
+        if: ${{ env.DRY_RUN != 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: v${{ needs.build-gdevelop-js.outputs.build_version }}
+        shell: bash
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists, reusing it."
+          else
+            gh release create "$TAG" \
+              --prerelease \
+              --title "$TAG" \
+              --generate-notes \
+              --target "${{ github.sha }}"
+          fi
+
+      - name: Dry-run summary
+        if: ${{ env.DRY_RUN == 'true' }}
+        shell: bash
+        run: |
+          echo "DRY RUN: skipped release creation."
+          echo "  build_version = ${{ needs.build-gdevelop-js.outputs.build_version }}"
+
   build-editor-windows:
     name: Build Editor (Windows)
-    needs: build-gdevelop-js
+    needs: [build-gdevelop-js, prepare-release]
     runs-on: windows-latest
     env:
       # React production build runs out of heap without a larger Node heap.
@@ -205,27 +265,28 @@ jobs:
         run: npm run build -- --publish=never
         working-directory: newIDE/electron-app
 
-      # Ship only the NSIS installer (e.g. "GDevelop 5 Setup 5.6.266-beta.42.exe"),
-      # not the unpacked win-unpacked/ tree or auxiliary files.
-      - name: Upload editor artifacts
+      # Attach only the NSIS installer (e.g. "GDevelop 5 Setup 5.6.266-beta.42.exe"),
+      # not the unpacked win-unpacked/ tree or auxiliary files. --clobber makes
+      # re-runs of this job safe.
+      - name: Attach Windows installer to release
         if: ${{ env.DRY_RUN != 'true' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: gdevelop-editor-windows-${{ needs.build-gdevelop-js.outputs.build_version }}
-          path: newIDE/electron-app/dist/*Setup*.exe
-          retention-days: 90
-          if-no-files-found: error
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: v${{ needs.build-gdevelop-js.outputs.build_version }}
+        shell: bash
+        run: |
+          gh release upload "$TAG" newIDE/electron-app/dist/*Setup*.exe --clobber
 
       - name: Dry-run summary
         if: ${{ env.DRY_RUN == 'true' }}
         shell: bash
         run: |
-          echo "DRY RUN (Windows): skipped installs, stamp, electron-builder and upload."
+          echo "DRY RUN (Windows): skipped installs, stamp, electron-builder and release upload."
           echo "  build_version = ${{ needs.build-gdevelop-js.outputs.build_version }}"
 
   build-editor-macos:
     name: Build Editor (macOS)
-    needs: build-gdevelop-js
+    needs: [build-gdevelop-js, prepare-release]
     runs-on: macos-latest
     env:
       # Mirrors the upstream CircleCI macOS build env.
@@ -299,21 +360,21 @@ jobs:
         run: npm run build -- --mac --publish=never
         working-directory: newIDE/electron-app
 
-      # Ship only the .dmg installer (universal build); skip the unpacked .app
-      # bundle in mac-universal/ and the auxiliary .zip that electron-builder
-      # emits next to the .dmg.
-      - name: Upload editor artifacts
+      # Attach only the universal .dmg (per mac.target=universal in
+      # electron-builder-config.js); skip mac-universal/ .app bundle and the
+      # auxiliary .zip. --clobber makes re-runs of this job safe.
+      - name: Attach macOS installer to release
         if: ${{ env.DRY_RUN != 'true' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: gdevelop-editor-macos-${{ needs.build-gdevelop-js.outputs.build_version }}
-          path: newIDE/electron-app/dist/*.dmg
-          retention-days: 90
-          if-no-files-found: error
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: v${{ needs.build-gdevelop-js.outputs.build_version }}
+        shell: bash
+        run: |
+          gh release upload "$TAG" newIDE/electron-app/dist/*universal*.dmg --clobber
 
       - name: Dry-run summary
         if: ${{ env.DRY_RUN == 'true' }}
         shell: bash
         run: |
-          echo "DRY RUN (macOS): skipped installs, stamp, electron-builder and upload."
+          echo "DRY RUN (macOS): skipped installs, stamp, electron-builder and release upload."
           echo "  build_version = ${{ needs.build-gdevelop-js.outputs.build_version }}"
