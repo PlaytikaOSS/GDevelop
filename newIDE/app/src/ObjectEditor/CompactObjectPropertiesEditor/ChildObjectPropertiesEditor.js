@@ -68,6 +68,7 @@ export const ChildObjectPropertiesEditor = ({
         onUpdateProperty: ({ object, objectConfiguration }, name, value) =>
           objectConfiguration.updateProperty(name, value),
         visibility: 'All',
+        layersContainer: null,
       });
     },
     [schemaRecomputeTrigger, childObjectConfigurationAsGd]
@@ -89,7 +90,6 @@ export const ChildObjectPropertiesEditor = ({
         onInstancesModified={() => {
           // TODO: undo/redo?
         }}
-        // $FlowFixMe[incompatible-type]
         onRefreshAllFields={forceRecomputeSchema}
         placeholder={<Trans>This object has no properties.</Trans>}
         customizeBasicSchema={schema =>

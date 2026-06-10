@@ -83,9 +83,9 @@ gd::String EventsCodeGenerator::GenerateEventsListCompleteFunctionCode(
   gd::String bpFinallyCode;
   if (!codeGenerator.GenerateCodeForRuntime()) {
     gd::String ns = codeGenerator.ConvertToStringExplicit(codeGenerator.GetCodeNamespace());
-    bpPushCode = "if (runtimeScene) runtimeScene.__pushBpFunction(" + ns + ");\n";
+    bpPushCode = "if (runtimeScene) runtimeScene.getBreakpointManager().pushBreakpointFunction(" + ns + ");\n";
     bpTryCode = "try {\n";
-    bpFinallyCode = "} finally { if (runtimeScene) runtimeScene.__popBpFunction(); }\n";
+    bpFinallyCode = "} finally { if (runtimeScene) runtimeScene.getBreakpointManager().popBreakpointFunction(); }\n";
   }
 
   gd::String output =
@@ -99,11 +99,9 @@ gd::String EventsCodeGenerator::GenerateEventsListCompleteFunctionCode(
       fullyQualifiedFunctionName + " = function(" +
         functionArgumentsCode +
       ") {\n" +
-        // Prelude runs BEFORE __pushBpFunction because object methods declare
-        // `var runtimeScene = this._instanceContainer;` in the prelude.
-        // If bpPushCode ran earlier, `runtimeScene` would be undefined (var-hoisted)
-        // and the push would silently no-op, leaving custom-object method calls
-        // at the wrong bp depth (breaks stepping's depth-based "don't step into" guard).
+        // Prelude must run before pushBreakpointFunction: object methods declare
+        // `var runtimeScene = this._instanceContainer;` there, so pushing
+        // earlier would hit a var-hoisted undefined and silently no-op.
         functionPreEventsCode + "\n" +
         bpPushCode +
         bpTryCode +
@@ -1594,15 +1592,14 @@ gd::String EventsCodeGenerator::GenerateProfilerSectionEnd(
 gd::String EventsCodeGenerator::GenerateBreakpointCode(size_t eventIndex) {
   if (GenerateCodeForRuntime()) return "";
 
-  // Breakpoints are only supported in Electron preview where the Chrome
-  // DevTools Protocol is attached from the main process. `__checkBreakpoint`
-  // returns `false` in any other preview mode (web / remote browser), so
-  // the `debugger;` statement never fires there and is effectively dead
-  // code — no V8 debugger is attached to pause on it anyway.
-  return "if (runtimeScene && runtimeScene.__checkBreakpoint(" +
+  // The `runtimeScene &&` guard matches the push/pop and profiler code: the
+  // local can be undefined during custom-object construction.
+  // checkBreakpoint returns false unless CDP is attached (Electron local
+  // preview only), so the `debugger;` is dead code in web/remote previews.
+  return "if (runtimeScene && runtimeScene.getBreakpointManager().checkBreakpoint(" +
          ConvertToStringExplicit(GetCodeNamespace()) + ", " +
          gd::String::From(eventIndex) +
-         ")) debugger;\n";
+         ", runtimeScene)) debugger;\n";
 }
 
 gd::String EventsCodeGenerator::GeneratePropertySetterWithoutCasting(

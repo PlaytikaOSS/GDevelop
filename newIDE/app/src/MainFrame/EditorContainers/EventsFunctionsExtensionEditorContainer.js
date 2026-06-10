@@ -78,15 +78,28 @@ export class EventsFunctionsExtensionEditorContainer extends React.Component<Ren
     }
   }
 
+  selectAllInsideEditor() {
+    if (this.editor) {
+      this.editor.selectAllEvents();
+    }
+  }
+
   forceUpdateEditor() {
     // No updates to be done.
   }
 
-  onEventsBasedObjectChildrenEdited() {
+  onEventsBasedObjectChildrenEdited(
+    eventsBasedObject: gdEventsBasedObject,
+    options?: {| editedObject?: ?gdObject, hasResourceChanged?: boolean |}
+  ) {
     // No thing to be done.
   }
 
-  onSceneObjectEdited(scene: gdLayout, objectWithContext: ObjectWithContext) {
+  onSceneObjectEdited(
+    scene: gdLayout,
+    objectWithContext: ObjectWithContext,
+    hasResourceChanged?: boolean
+  ) {
     // No thing to be done.
   }
 

@@ -197,10 +197,14 @@ export type HomePageEditorInterface = {|
   getProject: () => void,
   updateToolbar: () => void,
   forceUpdateEditor: () => void,
-  onEventsBasedObjectChildrenEdited: () => void,
+  onEventsBasedObjectChildrenEdited: (
+    eventsBasedObject: gdEventsBasedObject,
+    options?: {| editedObject?: ?gdObject, hasResourceChanged?: boolean |}
+  ) => void,
   onSceneObjectEdited: (
     scene: gdLayout,
-    objectWithContext: ObjectWithContext
+    objectWithContext: ObjectWithContext,
+    hasResourceChanged?: boolean
   ) => void,
   onSceneObjectsDeleted: (scene: gdLayout) => void,
   onSceneEventsModifiedOutsideEditor: (
@@ -217,6 +221,7 @@ export type HomePageEditorInterface = {|
   onObjectGroupsModifiedOutsideEditor: (
     changes: ObjectGroupsOutsideEditorChanges
   ) => void,
+  selectAllInsideEditor: () => void,
 |};
 
 export const HomePage: React.ComponentType<Props> = React.memo<Props>(
@@ -560,6 +565,7 @@ export const HomePage: React.ComponentType<Props> = React.memo<Props>(
         onInstancesModifiedOutsideEditor: noop,
         onObjectsModifiedOutsideEditor: noop,
         onObjectGroupsModifiedOutsideEditor: noop,
+        selectAllInsideEditor: noop,
       }));
 
       // As the homepage is never unmounted, we need to ensure the games platform

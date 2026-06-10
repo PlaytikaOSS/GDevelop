@@ -103,6 +103,12 @@ namespace gdjs {
     /** if true, game is run as a preview launched from an editor. */
     isPreview?: boolean;
 
+    /**
+     * if true, a CDP debugger is attached (local Electron preview), so the
+     * generated `debugger;` statements are live and breakpoints can fire.
+     */
+    cdpDebuggerEnabled?: boolean;
+
     /** if set, the status of the game to be restored. */
     initialRuntimeGameStatus?: RuntimeGameStatus;
 
@@ -184,30 +190,6 @@ namespace gdjs {
     environment?: 'dev';
   };
 
-  /** Breakpoints and stepping state used by the preview debugger. */
-  export type DebuggerState = {
-    breakpointIndices: Map<string, Set<number>> | null;
-    stepNextEvent: boolean;
-    stepPassedCurrentEvent: boolean;
-    stepCurrentEventIndex: number;
-    stepCurrentFunctionId: string;
-    stepStartDepth: number;
-    /** Hit info of the breakpoint currently frozen on `debugger;`. */
-    lastBreakpoint: {
-      functionId: string;
-      eventIndex: number;
-      sceneName: string;
-    } | null;
-    /** Container that was executing when the breakpoint fired — scene for
-     * scene events, custom-object sub-container for object-method events.
-     * Typed as the union because `RuntimeScene` widens `getProfiler()`'s
-     * return type, so it is not strictly assignable to the abstract base. */
-    lastBpCallingContainer:
-      | gdjs.RuntimeInstanceContainer
-      | gdjs.RuntimeScene
-      | null;
-  };
-
   /**
    * Represents a game being played.
    * @category Core Engine > Game
@@ -282,21 +264,8 @@ namespace gdjs {
      */
     _debuggerClient: gdjs.AbstractDebuggerClient | null;
 
-    /**
-     * Breakpoints and stepping state used by the preview debugger.
-     * Accessed directly by RuntimeScene.__checkBreakpoint and
-     * AbstractDebuggerClient command handlers for performance.
-     */
-    _debugState: gdjs.DebuggerState = {
-      breakpointIndices: null,
-      stepNextEvent: false,
-      stepPassedCurrentEvent: false,
-      stepCurrentEventIndex: -1,
-      stepCurrentFunctionId: '',
-      stepStartDepth: 0,
-      lastBreakpoint: null,
-      lastBpCallingContainer: null,
-    };
+    /** Preview debugger's breakpoint manager; see `getBreakpointManager`. */
+    _breakpointManager: gdjs.DebuggerBreakpointManager | null = null;
     _sessionMetricsInitialized: boolean = false;
     _disableMetrics: boolean = false;
     _isPreview: boolean;
@@ -954,6 +923,14 @@ namespace gdjs {
       return this._debuggerClient;
     }
 
+    /** Returns the breakpoint manager, creating it on first use. */
+    getBreakpointManager(): gdjs.DebuggerBreakpointManager {
+      if (!this._breakpointManager) {
+        this._breakpointManager = new gdjs.DebuggerBreakpointManager(this);
+      }
+      return this._breakpointManager;
+    }
+
     /**
      * @returns true during the first frame the game is back from being hidden.
      * This has nothing to do with `_paused`.
@@ -965,26 +942,32 @@ namespace gdjs {
     /**
      * Preload an object assets in background.
      */
-    loadObjectOrGroupAssets(objectOrGroupName: string): void {
+    loadObjectOrGroupAssets(
+      objectOrGroupName: string,
+      sceneName?: string
+    ): void {
       const currentScene = this._sceneStack.getCurrentScene();
       if (!currentScene) {
         return;
       }
+      if (!sceneName) {
+        sceneName = currentScene.getName();
+      }
       const objectGroupData = this.getObjectGroupData(
-        currentScene.getName(),
+        sceneName,
         objectOrGroupName
       );
       if (objectGroupData) {
         for (const object of objectGroupData.objects) {
-          this._loadObjectAssets(currentScene, object.name);
+          this._loadObjectAssets(sceneName, object.name);
         }
       } else {
-        this._loadObjectAssets(currentScene, objectOrGroupName);
+        this._loadObjectAssets(sceneName, objectOrGroupName);
       }
     }
 
-    private _loadObjectAssets(currentScene: RuntimeScene, objectName: string) {
-      const objectData = currentScene._objects.get(objectName);
+    private _loadObjectAssets(sceneName: string, objectName: string) {
+      const objectData = this.getObjectData(sceneName, objectName);
       if (!objectData) {
         return;
       }
@@ -993,7 +976,7 @@ namespace gdjs {
         return;
       }
       this._resourcesLoader.loadObjectResources(
-        currentScene.getName(),
+        sceneName,
         objectName,
         usedResources
       );
@@ -1002,22 +985,25 @@ namespace gdjs {
     /**
      * @returns true when all the resources of the given object are loaded.
      */
-    areObjectOrGroupAssetsLoaded(objectOrGroupName: string): boolean {
+    areObjectOrGroupAssetsLoaded(
+      objectOrGroupName: string,
+      sceneName?: string
+    ): boolean {
       const currentScene = this._sceneStack.getCurrentScene();
       if (!currentScene) {
         return false;
       }
+      if (!sceneName) {
+        sceneName = currentScene.getName();
+      }
       const objectGroupData = this.getObjectGroupData(
-        currentScene.getName(),
+        sceneName,
         objectOrGroupName
       );
       if (objectGroupData) {
         for (const object of objectGroupData.objects) {
           if (
-            !this._resourcesLoader.areObjectAssetsReady(
-              currentScene.getName(),
-              object.name
-            )
+            !this._resourcesLoader.areObjectAssetsReady(sceneName, object.name)
           ) {
             return false;
           }
@@ -1025,7 +1011,7 @@ namespace gdjs {
         return true;
       }
       return this._resourcesLoader.areObjectAssetsReady(
-        currentScene.getName(),
+        sceneName,
         objectOrGroupName
       );
     }
@@ -1033,28 +1019,46 @@ namespace gdjs {
     /**
      * Unload an object assets.
      */
-    unloadObjectOrGroupAssets(objectOrGroupName: string): void {
+    unloadObjectOrGroupAssets(
+      objectOrGroupName: string,
+      sceneName?: string
+    ): void {
       const currentScene = this._sceneStack.getCurrentScene();
       if (!currentScene) {
         return;
       }
+      if (!sceneName) {
+        sceneName = currentScene.getName();
+      }
       const objectGroupData = this.getObjectGroupData(
-        currentScene.getName(),
+        sceneName,
         objectOrGroupName
       );
       if (objectGroupData) {
         for (const object of objectGroupData.objects) {
-          this._resourcesLoader.unloadObjectResources(
-            currentScene.getName(),
-            object.name
-          );
+          this._resourcesLoader.unloadObjectResources(sceneName, object.name);
         }
       } else {
         this._resourcesLoader.unloadObjectResources(
-          currentScene.getName(),
+          sceneName,
           objectOrGroupName
         );
       }
+    }
+
+    private getObjectData(
+      sceneName: string,
+      objectName: string
+    ): ObjectData | null {
+      const sceneData = this.getSceneData(sceneName);
+      if (sceneData) {
+        for (const objectData of sceneData.objects) {
+          if (objectData.name === objectName) {
+            return objectData;
+          }
+        }
+      }
+      return null;
     }
 
     private getObjectGroupData(
@@ -1063,9 +1067,9 @@ namespace gdjs {
     ): ObjectGroupData | null {
       const sceneData = this.getSceneData(sceneName);
       if (sceneData) {
-        for (const objectGroup of sceneData.objectsGroups) {
-          if (objectGroup.name === objectGroupName) {
-            return objectGroup;
+        for (const objectGroupData of sceneData.objectsGroups) {
+          if (objectGroupData.name === objectGroupName) {
+            return objectGroupData;
           }
         }
       }
@@ -1178,7 +1182,8 @@ namespace gdjs {
           gdjs.getAllAsynchronouslyLoadingLibraryPromise(),
         ]);
       } catch (e) {
-        if (this._debuggerClient) this._debuggerClient.onUncaughtException(e);
+        if (this._debuggerClient)
+          this._debuggerClient.onUncaughtException(e as Error);
 
         throw e;
       }
@@ -1409,7 +1414,7 @@ namespace gdjs {
             return true;
           } catch (e) {
             if (this._debuggerClient)
-              this._debuggerClient.onUncaughtException(e);
+              this._debuggerClient.onUncaughtException(e as Error);
 
             throw e;
           }
@@ -1421,7 +1426,8 @@ namespace gdjs {
           this._captureManager.setupCaptureOptions(this._isPreview);
         }
       } catch (e) {
-        if (this._debuggerClient) this._debuggerClient.onUncaughtException(e);
+        if (this._debuggerClient)
+          this._debuggerClient.onUncaughtException(e as Error);
 
         throw e;
       }

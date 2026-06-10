@@ -19,6 +19,8 @@
 #include "GDCore/CommonTools.h"
 #include "GDCore/Events/CodeGeneration/DiagnosticReport.h"
 #include "GDCore/Events/CodeGeneration/EffectsCodeGenerator.h"
+#include "GDCore/Events/Event.h"
+#include "GDCore/Events/EventsList.h"
 #include "GDCore/Extensions/Metadata/DependencyMetadata.h"
 #include "GDCore/Extensions/Metadata/MetadataProvider.h"
 #include "GDCore/Extensions/Metadata/InGameEditorResourceMetadata.h"
@@ -373,6 +375,10 @@ void ExporterHelper::SerializeRuntimeGameOptions(
     gd::SerializerElement &runtimeGameOptions) {
   // Create the setup options passed to the gdjs.RuntimeGame
   runtimeGameOptions.AddChild("isPreview").SetBoolValue(true);
+  // Tells the runtime a CDP debugger is attached so `debugger;` statements
+  // are live (local Electron preview only).
+  runtimeGameOptions.AddChild("cdpDebuggerEnabled")
+      .SetBoolValue(options.cdpDebuggerEnabled);
 
   auto &initialRuntimeGameStatus =
       runtimeGameOptions.AddChild("initialRuntimeGameStatus");
@@ -1311,6 +1317,18 @@ bool ExporterHelper::ExportEffectIncludes(
   return true;
 }
 
+// Count all events of a list, recursing into sub-events. Used only for the
+// per-scene profiling breakdown below.
+static std::size_t CountEventsRecursively(const gd::EventsList &events) {
+  std::size_t count = events.GetEventsCount();
+  for (std::size_t e = 0; e < events.GetEventsCount(); ++e) {
+    const gd::BaseEvent &event = events.GetEvent(e);
+    if (event.CanHaveSubEvents())
+      count += CountEventsRecursively(event.GetSubEvents());
+  }
+  return count;
+}
+
 bool ExporterHelper::ExportScenesEventsCode(
     const gd::Project &project,
     gd::String outputDir,
@@ -1323,6 +1341,7 @@ bool ExporterHelper::ExportScenesEventsCode(
     std::set<gd::String> eventsIncludes;
     const gd::Layout &layout = project.GetLayout(i);
 
+    double sceneStartTime = GetTimeNow();
     auto &diagnosticReport =
         wholeProjectDiagnosticReport.AddNewDiagnosticReportForScene(
             layout.GetName());
@@ -1331,6 +1350,14 @@ bool ExporterHelper::ExportScenesEventsCode(
         layout, eventsIncludes, diagnosticReport, !exportForPreview);
     gd::String filename =
         outputDir + "/" + "code" + gd::String::From(i) + ".js";
+
+    // [Profiling] Per-scene breakdown to find what dominates events code export.
+    gd::LogStatus(
+        "  Scene '" + layout.GetName() + "': " +
+        gd::String::From(GetTimeSpent(sceneStartTime)) + "ms, " +
+        gd::String::From(CountEventsRecursively(layout.GetEvents())) +
+        " events, " + gd::String::From(eventsOutput.size() / 1024) +
+        " KB generated code");
 
     // Export the code
     if (fs.WriteToFile(filename, eventsOutput)) {

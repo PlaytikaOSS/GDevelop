@@ -120,15 +120,26 @@ export class ExternalEventsEditorContainer extends React.Component<
     if (this.editor) this.editor.clearGlobalSearchResults();
   }
 
+  selectAllInsideEditor() {
+    if (this.editor) this.editor.selectAllEvents();
+  }
+
   forceUpdateEditor() {
     // No updates to be done.
   }
 
-  onEventsBasedObjectChildrenEdited() {
+  onEventsBasedObjectChildrenEdited(
+    eventsBasedObject: gdEventsBasedObject,
+    options?: {| editedObject?: ?gdObject, hasResourceChanged?: boolean |}
+  ) {
     // No thing to be done.
   }
 
-  onSceneObjectEdited(scene: gdLayout, objectWithContext: ObjectWithContext) {
+  onSceneObjectEdited(
+    scene: gdLayout,
+    objectWithContext: ObjectWithContext,
+    hasResourceChanged?: boolean
+  ) {
     // No thing to be done.
   }
 
@@ -221,11 +232,11 @@ export class ExternalEventsEditorContainer extends React.Component<
     });
   };
 
-  onCreateEventsFunction = (
+  onCreateEventsFunction = async (
     extensionName: string,
     eventsFunction: gdEventsFunction
   ) => {
-    this.props.onCreateEventsFunction(
+    await this.props.onCreateEventsFunction(
       extensionName,
       eventsFunction,
       'external-events-editor'
@@ -277,6 +288,8 @@ export class ExternalEventsEditorContainer extends React.Component<
             hotReloadPreviewButtonProps={this.props.hotReloadPreviewButtonProps}
             onWillInstallExtension={this.props.onWillInstallExtension}
             onExtensionInstalled={this.props.onExtensionInstalled}
+            // Scene events don't have parameters
+            editEventsFunctionParameter={() => {}}
           />
         )}
         {!layout && (

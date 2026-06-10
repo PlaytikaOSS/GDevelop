@@ -118,14 +118,13 @@ export const CompactBehaviorPropertiesEditor = ({
   behaviorMetadata,
   behavior,
   object,
+  layersContainer,
   behaviorOverriding,
   initialInstance,
   onOpenFullEditor,
   onBehaviorUpdated,
   resourceManagementProps,
 }: CompactBehaviorPropertiesEditorProps): React.Node => {
-  const fullEditorLabel = behaviorMetadata.getOpenFullEditorLabel();
-
   const [schemaRecomputeTrigger, forceRecomputeSchema] = useForceRecompute();
 
   const propertiesSchema = React.useMemo(
@@ -149,6 +148,7 @@ export const CompactBehaviorPropertiesEditor = ({
               initialInstance
             ),
           object,
+          layersContainer,
           visibility: 'All',
           showcaseNonDefaultValues: true,
         });
@@ -166,15 +166,17 @@ export const CompactBehaviorPropertiesEditor = ({
           instance.updateProperty(name, value);
         },
         object,
+        layersContainer,
         visibility: 'All',
       });
     },
     [
       schemaRecomputeTrigger,
       initialInstance,
-      behavior,
       behaviorMetadata,
       object,
+      layersContainer,
+      behavior,
       project,
     ]
   );
@@ -194,13 +196,12 @@ export const CompactBehaviorPropertiesEditor = ({
             ? schema =>
                 getSchemaWithOpenFullEditorButton({
                   schema,
-                  fullEditorLabel,
+                  fullEditorLabel: behaviorMetadata.getOpenFullEditorLabel(),
                   behavior,
                   onOpenFullEditor,
                 })
             : null
         }
-        // $FlowFixMe[incompatible-type]
         onRefreshAllFields={forceRecomputeSchema}
       />
     </ColumnStackLayout>

@@ -11,7 +11,9 @@ import EditorMosaic, {
   mosaicContainsNode,
 } from '../UI/EditorMosaic';
 import EmptyMessage from '../UI/EmptyMessage';
-import EventsFunctionConfigurationEditor from './EventsFunctionConfigurationEditor';
+import EventsFunctionConfigurationEditor, {
+  type EventsFunctionConfigurationEditorInterface,
+} from './EventsFunctionConfigurationEditor';
 import EventsFunctionsListWithErrorBoundary, {
   type EventsFunctionsListInterface,
 } from '../EventsFunctionsList';
@@ -50,6 +52,7 @@ import PropertyListEditor, {
 } from './PropertyListEditor';
 import type { EventPath } from '../Utils/EventPath';
 import type { SearchFilterParams } from '../Utils/Search';
+import { type VariableDialogOpeningProps } from '../VariablesList/VariablesEditorDialog';
 
 const gd: libGDevelop = global.gd;
 
@@ -75,7 +78,7 @@ type Props = {|
       | 'scene-events-editor'
       | 'extension-events-editor'
       | 'external-events-editor'
-  ) => void,
+  ) => Promise<void>,
   onBehaviorEdited?: () => void,
   onObjectEdited?: () => void,
   onFunctionEdited?: () => void,
@@ -163,6 +166,7 @@ export default class EventsFunctionsExtensionEditor extends React.Component<
   eventsBasedBehaviorEditor: ?EventsBasedBehaviorOrObjectEditorInterface;
   eventsBasedObjectEditor: ?EventsBasedBehaviorOrObjectEditorInterface;
   propertyListEditor: ?PropertyListEditorInterface;
+  eventsFunctionConfigurationEditor: ?EventsFunctionConfigurationEditorInterface;
   _editorMosaic: ?EditorMosaicInterface;
   _editorNavigator: ?EditorNavigatorInterface;
   // Create an empty "context" of objects.
@@ -303,6 +307,12 @@ export default class EventsFunctionsExtensionEditor extends React.Component<
   scrollToEventPath = (eventPath: EventPath) => {
     if (this.editor) {
       this.editor.scrollToEventPath(eventPath);
+    }
+  };
+
+  selectAllEvents = () => {
+    if (this.editor) {
+      this.editor.selectAllEvents();
     }
   };
 
@@ -1292,63 +1302,6 @@ export default class EventsFunctionsExtensionEditor extends React.Component<
     }
   };
 
-  _getFunctionGroupNames = (): Array<string> => {
-    const groupNames = new Set<string>();
-    // Look only in the edited function container because
-    // functions from the extension or different behaviors
-    // won't use the same groups names.
-    // An independent autocompletion is done for each of them.
-    const {
-      selectedEventsBasedBehavior,
-      selectedEventsBasedObject,
-    } = this.state;
-    if (selectedEventsBasedBehavior) {
-      const eventFunctionContainer = selectedEventsBasedBehavior.getEventsFunctions();
-      for (
-        let index = 0;
-        index < eventFunctionContainer.getEventsFunctionsCount();
-        index++
-      ) {
-        const groupName = eventFunctionContainer
-          .getEventsFunctionAt(index)
-          .getGroup();
-        if (groupName) {
-          groupNames.add(groupName);
-        }
-      }
-    } else if (selectedEventsBasedObject) {
-      const eventFunctionContainer = selectedEventsBasedObject.getEventsFunctions();
-      for (
-        let index = 0;
-        index < eventFunctionContainer.getEventsFunctionsCount();
-        index++
-      ) {
-        const groupName = eventFunctionContainer
-          .getEventsFunctionAt(index)
-          .getGroup();
-        if (groupName) {
-          groupNames.add(groupName);
-        }
-      }
-    } else {
-      const { eventsFunctionsExtension } = this.props;
-      const freeEventsFunctions = eventsFunctionsExtension.getEventsFunctions();
-      for (
-        let index = 0;
-        index < freeEventsFunctions.getEventsFunctionsCount();
-        index++
-      ) {
-        const groupName = freeEventsFunctions
-          .getEventsFunctionAt(index)
-          .getGroup();
-        if (groupName) {
-          groupNames.add(groupName);
-        }
-      }
-    }
-    return [...groupNames].sort((a, b) => a.localeCompare(b));
-  };
-
   _onConfigurationUpdated = (
     attribute: ?ExtensionItemConfigurationAttribute
   ) => {
@@ -1371,15 +1324,22 @@ export default class EventsFunctionsExtensionEditor extends React.Component<
     });
   };
 
-  onCreateEventsFunction = (
+  onCreateEventsFunction = async (
     extensionName: string,
     eventsFunction: gdEventsFunction
   ) => {
-    this.props.onCreateEventsFunction(
+    await this.props.onCreateEventsFunction(
       extensionName,
       eventsFunction,
       'extension-events-editor'
     );
+  };
+
+  _editEventsFunctionParameter = (props: VariableDialogOpeningProps) => {
+    if (!this.eventsFunctionConfigurationEditor) {
+      return;
+    }
+    this.eventsFunctionConfigurationEditor.editEventsFunctionParameter(props);
   };
 
   render(): any {
@@ -1425,6 +1385,7 @@ export default class EventsFunctionsExtensionEditor extends React.Component<
                 this._objectsContainer &&
                 this._projectScopedContainersAccessor ? (
                   <EventsFunctionConfigurationEditor
+                    ref={ref => (this.eventsFunctionConfigurationEditor = ref)}
                     project={project}
                     projectScopedContainersAccessor={
                       this._projectScopedContainersAccessor
@@ -1471,8 +1432,9 @@ export default class EventsFunctionsExtensionEditor extends React.Component<
                     onFunctionParameterTypeChanged={
                       this._onFunctionParameterChangedOfType
                     }
+                    onWillInstallExtension={this.props.onWillInstallExtension}
+                    onExtensionInstalled={this.props.onExtensionInstalled}
                     unsavedChanges={this.props.unsavedChanges}
-                    getFunctionGroupNames={this._getFunctionGroupNames}
                   />
                 ) : (selectedEventsBasedObject ||
                     selectedEventsBasedBehavior) &&
@@ -1600,6 +1562,7 @@ export default class EventsFunctionsExtensionEditor extends React.Component<
                 }
                 onWillInstallExtension={this.props.onWillInstallExtension}
                 onExtensionInstalled={this.props.onExtensionInstalled}
+                editEventsFunctionParameter={this._editEventsFunctionParameter}
               />
             </Background>
           ) : selectedEventsBasedBehavior &&
@@ -1656,6 +1619,8 @@ export default class EventsFunctionsExtensionEditor extends React.Component<
               onConfigurationUpdated={this._onConfigurationUpdated}
               onOpenCustomObjectEditor={() => {}}
               onEventsBasedObjectChildrenEdited={() => {}}
+              onWillInstallExtension={this.props.onWillInstallExtension}
+              onExtensionInstalled={this.props.onExtensionInstalled}
             />
           ) : selectedEventsBasedObject &&
             this._projectScopedContainersAccessor ? (
@@ -1708,6 +1673,8 @@ export default class EventsFunctionsExtensionEditor extends React.Component<
               onEventsBasedObjectChildrenEdited={
                 this.props.onEventsBasedObjectChildrenEdited
               }
+              onWillInstallExtension={this.props.onWillInstallExtension}
+              onExtensionInstalled={this.props.onExtensionInstalled}
             />
           ) : (
             <Background>
@@ -1916,6 +1883,7 @@ export default class EventsFunctionsExtensionEditor extends React.Component<
             onApply={() => this._editVariables(null)}
             hotReloadPreviewButtonProps={this.props.hotReloadPreviewButtonProps}
             isListLocked={false}
+            initiallySelectedVariable={null}
           />
         )}
         {objectMethodSelectorDialogOpen && selectedEventsBasedObject && (

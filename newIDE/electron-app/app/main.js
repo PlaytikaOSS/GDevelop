@@ -71,11 +71,11 @@ let windowCounter = 0; // Counter for creating unique session partitions
 
 // Parse arguments (knowing that in dev, we run electron with an argument,
 // so have to ignore one more).
-const args = parseArgs(process.argv.slice(isDev ? 2 : 1), {
-  // "Officially" supported arguments and their types:
-  boolean: ['dev-tools', 'disable-update-check'],
-  string: '_', // Files are always strings
-});
+const argsParserOptions = {
+  boolean: ['dev-tools', 'disable-update-check', 'keep-open'],
+  string: ['_', 'run-command'],
+};
+const args = parseArgs(process.argv.slice(isDev ? 2 : 1), argsParserOptions);
 
 const devTools = !!args['dev-tools'];
 
@@ -89,22 +89,32 @@ if (process.platform === 'win32') {
 }
 
 // Single instance lock - prevents multiple Electron processes
-// This solves Firebase IndexedDB locking issues while still allowing multiple windows
-const gotTheLock = app.requestSingleInstanceLock();
+// This solves Firebase IndexedDB locking issues while still allowing multiple windows.
+//
+// When invoked via `--run-command` (CLI / CI scenarios), we deliberately
+// SKIP the single-instance lock so each CLI invocation runs in its own
+// process. This lets the launching shell wait for completion and observe
+// the exit code, instead of being immediately backgrounded by the existing
+// instance taking over via the second-instance handler.
+const isCliRunCommand = !!args['run-command'];
+const gotTheLock = isCliRunCommand ? true : app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
   // Second instance attempted - quit immediately
   app.quit();
-} else {
+} else if (!isCliRunCommand) {
   // First instance - handle second-instance events by creating new windows
   app.on('second-instance', (event, commandLine, workingDirectory) => {
-    // User tried to launch app again - create a new window instead
-    const secondInstanceArgs = parseArgs(commandLine.slice(isDev ? 2 : 1), {
-      boolean: ['dev-tools', 'disable-update-check'],
-      string: '_',
-    });
+    const secondInstanceArgs = parseArgs(
+      commandLine.slice(isDev ? 2 : 1),
+      argsParserOptions
+    );
 
-    // Create a new window in the existing process
+    // Update the global args so the new window's renderer (which reads them
+    // via remote.getGlobal('args')) picks up the second-instance CLI flags
+    // (e.g. --run-command, positional project file).
+    global['args'] = secondInstanceArgs;
+
     createNewWindow(secondInstanceArgs);
   });
 }
@@ -195,8 +205,13 @@ function createNewWindow(windowArgs = args) {
     options.show = false;
   }
 
+  if (isCliRunCommand && !windowArgs['keep-open']) {
+    options.show = false;
+    options.skipTaskbar = true;
+  }
+
   const newWindow = new BrowserWindow(options);
-  if (!isIntegrated) newWindow.maximize();
+  if (!isIntegrated && !isCliRunCommand) newWindow.maximize();
 
   // Capture window ID and whether this is the primary window before it can be destroyed
   const windowId = newWindow.id;
@@ -215,6 +230,19 @@ function createNewWindow(windowArgs = args) {
 
   // Enable `@electron/remote` module for renderer process
   require('@electron/remote/main').enable(newWindow.webContents);
+
+  // Uses process.stdout/stderr directly (not electron-log) to avoid
+  // re-entering the renderer console and causing an infinite loop.
+  if (isCliRunCommand) {
+    newWindow.webContents.on('console-message', (_event, level, message) => {
+      if (level < 1) return;
+      if (message.startsWith('%c')) return;
+      if (message.includes('[renderer:')) return; // break recursion
+      const tag = ['verbose', 'info', 'warning', 'error'][level] || 'log';
+      const stream = level >= 2 ? process.stderr : process.stdout;
+      stream.write(`[renderer:${tag}] ${message}\n`);
+    });
+  }
 
   // Log process ID to verify separate renderer processes
   newWindow.webContents.once('did-finish-load', () => {
@@ -276,9 +304,7 @@ function createNewWindow(windowArgs = args) {
       // Extract the theme background color passed via the features string
       // by WindowPortal (e.g. "...,themeBackgroundColor=%23282828").
       let backgroundColor = '#000';
-      const match = details.features.match(
-        /themeBackgroundColor=([^,]*)/
-      );
+      const match = details.features.match(/themeBackgroundColor=([^,]*)/);
       if (match) {
         try {
           backgroundColor = decodeURIComponent(match[1]);
@@ -319,8 +345,15 @@ function createNewWindow(windowArgs = args) {
   newWindow.webContents.on('did-create-window', (childWindow, details) => {
     require('@electron/remote/main').enable(childWindow.webContents);
 
-    if (!details.frameName || !details.frameName.startsWith('GDevelopWindowPortal')) {
-      console.warn(`Unexpected frameName for child window: ${details.frameName} - verify handling on Electron side.`);
+    if (
+      !details.frameName ||
+      !details.frameName.startsWith('GDevelopWindowPortal')
+    ) {
+      console.warn(
+        `Unexpected frameName for child window: ${
+          details.frameName
+        } - verify handling on Electron side.`
+      );
     }
 
     // Track child window by frameName so the renderer can look up its
@@ -393,6 +426,10 @@ app.on('ready', function() {
     ]);
   }
 
+  ipcMain.on('app-exit', (_event, exitCode) => {
+    app.exit(typeof exitCode === 'number' ? exitCode : 0);
+  });
+
   ipcMain.on('set-main-menu', (event, mainMenuTemplate) => {
     const window = BrowserWindow.fromWebContents(event.sender);
     Menu.setApplicationMenu(
@@ -425,22 +462,17 @@ app.on('ready', function() {
     return closeAllPreviewWindows();
   });
 
-  // Resume V8 that has been paused on a `debugger;` statement emitted by
-  // the breakpoints codegen. `windowId` is the BrowserWindow id of the
-  // preview that is currently paused.
   ipcMain.handle('preview-debugger-resume', async (event, { windowId }) => {
     return resumePreviewDebugger(windowId);
   });
 
-  // Write stepping state into the paused runtime via CDP Runtime.evaluate,
-  // then resume V8 so the next `__checkBreakpoint` trips on the target event.
-  ipcMain.handle('preview-debugger-step', async (event, { windowId, payload }) => {
-    return stepPreviewDebugger(windowId, payload);
-  });
+  ipcMain.handle(
+    'preview-debugger-step',
+    async (event, { windowId, payload }) => {
+      return stepPreviewDebugger(windowId, payload);
+    }
+  );
 
-  // Push the full session breakpoint payload into the runtime via CDP.
-  // `Runtime.evaluate` applies atomically and works even while V8 is paused
-  // on a `debugger;` statement.
   ipcMain.handle(
     'preview-debugger-set-breakpoints',
     async (event, { windowId, breakpoints }) => {
@@ -448,9 +480,6 @@ app.on('ready', function() {
     }
   );
 
-  // Schedule "pause at next event" in a *running* preview (F10 while not
-  // paused). Writes the stepping FSM via CDP Runtime.evaluate; no
-  // Debugger.resume is issued because V8 is not paused.
   ipcMain.handle(
     'preview-debugger-schedule-pause',
     async (event, { windowId }) => {
@@ -574,7 +603,9 @@ app.on('ready', function() {
       const subscriptionId = setupWatcher(
         folderPath,
         changedFilePath => {
-          event.sender.send('project-file-changed', changedFilePath);
+          if (!event.sender.isDestroyed()) {
+            event.sender.send('project-file-changed', changedFilePath);
+          }
         },
         options
       );
@@ -801,70 +832,80 @@ app.on('ready', function() {
 
   setUpDiscordRichPresence(ipcMain);
 
+  const NPM_SCRIPT_COMMAND_FAILED_MESSAGE = 'Command failed!';
+
   // npm script execution in external terminal (cross-platform)
-  ipcMain.on('run-npm-script', (event, { projectPath, npmScript }) => {
-    log.info(`Running npm script "${npmScript}" in ${projectPath}`);
+  ipcMain.on(
+    'run-npm-script',
+    (event, { projectPath, npmScript, keepTerminalOpen }) => {
+      log.info(`Running npm script "${npmScript}" in ${projectPath}`);
 
-    const platform = process.platform;
-    const npmCommand = `npm run ${npmScript}`;
+      const platform = process.platform;
+      const npmCommand = `npm run ${npmScript}`;
+      const keepOpen = !!keepTerminalOpen;
 
-    try {
-      if (platform === 'win32') {
-        // Windows: open cmd window that stays open after npm command
-        child_process
-          .spawn(
-            'cmd.exe',
-            [
-              '/c',
-              'start',
+      try {
+        if (platform === 'win32') {
+          const innerCmd = keepOpen
+            ? `cd /d ${projectPath} && ${npmCommand}`
+            : `cd /d ${projectPath} && ${npmCommand} || (echo. & echo ${NPM_SCRIPT_COMMAND_FAILED_MESSAGE} & pause)`;
+          const cmdCloseFlag = keepOpen ? '/k' : '/c';
+          child_process
+            .spawn(
               'cmd.exe',
-              '/k',
-              `cd /d ${projectPath} && ${npmCommand}`,
-            ],
-            {
-              detached: true,
-              stdio: 'ignore',
-            }
-          )
-          .unref();
-      } else if (platform === 'darwin') {
-        const escapedPath = projectPath.replace(/'/g, "'\\''");
-        const script = `tell application "Terminal" to do script "cd '${escapedPath}' && ${npmCommand}"`;
-        child_process.spawn('osascript', ['-e', script], {
-          detached: true,
-          stdio: 'ignore',
-        });
-      } else {
-        // Linux: try common terminal emulators
-        const bashCommand = `cd "${projectPath}" && ${npmCommand}; exec bash`;
-        const terminals = [
-          {
-            cmd: 'x-terminal-emulator',
-            args: ['-e', 'bash', '-c', bashCommand],
-          },
-          { cmd: 'gnome-terminal', args: ['--', 'bash', '-c', bashCommand] },
-          { cmd: 'konsole', args: ['-e', 'bash', '-c', bashCommand] },
-          { cmd: 'xterm', args: ['-e', 'bash', '-c', bashCommand] },
-        ];
-
-        const tryTerminal = index => {
-          if (index >= terminals.length) {
-            log.error('No terminal emulator found');
-            return;
-          }
-          const terminal = terminals[index];
-          const proc = child_process.spawn(terminal.cmd, terminal.args, {
+              ['/c', 'start', 'cmd.exe', cmdCloseFlag, innerCmd],
+              {
+                detached: true,
+                stdio: 'ignore',
+              }
+            )
+            .unref();
+        } else if (platform === 'darwin') {
+          const escapedPath = projectPath.replace(/'/g, "'\\''");
+          const shellCommand = keepOpen
+            ? `cd '${escapedPath}' && ${npmCommand}`
+            : `cd '${escapedPath}' && ${npmCommand} && exit || echo "${NPM_SCRIPT_COMMAND_FAILED_MESSAGE}"`;
+          const script = `tell application "Terminal" to do script "${shellCommand.replace(
+            /"/g,
+            '\\"'
+          )}"`;
+          child_process.spawn('osascript', ['-e', script], {
             detached: true,
             stdio: 'ignore',
           });
-          proc.on('error', () => tryTerminal(index + 1));
-          proc.unref();
-        };
+        } else {
+          const bashCommand = keepOpen
+            ? `cd "${projectPath}" && ${npmCommand}; exec bash`
+            : `cd "${projectPath}" && ${npmCommand} || { echo "${NPM_SCRIPT_COMMAND_FAILED_MESSAGE}"; exec bash; }`;
+          const terminals = [
+            {
+              cmd: 'x-terminal-emulator',
+              args: ['-e', 'bash', '-c', bashCommand],
+            },
+            { cmd: 'gnome-terminal', args: ['--', 'bash', '-c', bashCommand] },
+            { cmd: 'konsole', args: ['-e', 'bash', '-c', bashCommand] },
+            { cmd: 'xterm', args: ['-e', 'bash', '-c', bashCommand] },
+          ];
 
-        tryTerminal(0);
+          const tryTerminal = index => {
+            if (index >= terminals.length) {
+              log.error('No terminal emulator found');
+              return;
+            }
+            const terminal = terminals[index];
+            const proc = child_process.spawn(terminal.cmd, terminal.args, {
+              detached: true,
+              stdio: 'ignore',
+            });
+            proc.on('error', () => tryTerminal(index + 1));
+            proc.unref();
+          };
+
+          tryTerminal(0);
+        }
+      } catch (err) {
+        log.error('Failed to run npm script:', err);
       }
-    } catch (err) {
-      log.error('Failed to run npm script:', err);
     }
-  });
+  );
 });

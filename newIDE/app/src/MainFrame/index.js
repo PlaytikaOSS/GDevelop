@@ -23,13 +23,6 @@ import ProfileDialog from '../Profile/ProfileDialog';
 import PurchaseClaimDialog from '../Profile/PurchaseClaimDialog';
 import Window from '../Utils/Window';
 import { showErrorBox } from '../UI/Messages/MessageBox';
-import {
-  resumePausedPreview,
-  stepPausedPreview,
-  schedulePauseAtNextEvent,
-  onPreviewDebuggerPauseChange,
-  isElectronCDPBridgeAvailable,
-} from '../Debugger/ElectronCDPBridge';
 import EditorTabsPane, {
   type EditorTabsPaneCommonProps,
 } from './EditorTabsPane';
@@ -154,6 +147,7 @@ import HotReloadLogsDialog from '../HotReload/HotReloadLogsDialog';
 import { useDiscordRichPresence } from '../Utils/UpdateDiscordRichPresence';
 import { delay } from '../Utils/Delay';
 import useNewProjectDialog from './UseNewProjectDialog';
+import useBreakpointDebugger from './UseBreakpointDebugger';
 import { findAndLogProjectPreviewErrors } from '../Utils/ProjectErrorsChecker';
 import { renameResourcesInProject } from '../ResourcesList/ResourceUtils';
 import useNewResourceDialog from '../ResourcesList/useNewResourceDialog';
@@ -247,6 +241,7 @@ import StandaloneDialog from './StandAloneDialog';
 import { useInGameEditorSettings } from '../EmbeddedGame/InGameEditorSettings';
 import { ProjectScopedContainersAccessor } from '../InstructionOrExpression/EventsScope';
 import { useAutomatedRegularInGameEditorRestart } from '../EmbeddedGame/UseAutomatedRegularInGameEditorRestart';
+import isUserTyping from '../KeyboardShortcuts/IsUserTyping';
 const electron = optionalRequire('electron');
 const ipcRendererForUpdates = electron ? electron.ipcRenderer : null;
 
@@ -384,6 +379,12 @@ export type Props = {|
   initialExampleSlugToOpen: ?string,
   quickPublishOnlineWebExporter: Exporter,
   i18n: I18n,
+  useCliCommandRunner: ({|
+    project: ?gdProject,
+    i18n: I18n,
+    commandPaletteRef: {| current: ?CommandPaletteInterface |},
+  |}) => void,
+  onExportHtml5External?: (project: gdProject, i18n: I18n) => Promise<void>,
 |};
 
 const MainFrame = (props: Props): React.MixedElement => {
@@ -652,6 +653,8 @@ const MainFrame = (props: Props): React.MixedElement => {
     renderGDJSDevelopmentWatcher,
     renderMainMenu,
     quickPublishOnlineWebExporter,
+    useCliCommandRunner,
+    onExportHtml5External,
   } = props;
 
   const {
@@ -938,7 +941,9 @@ const MainFrame = (props: Props): React.MixedElement => {
     // We use the current storage provider, as it's supposed to be able to open
     // the initial file metadata. Indeed, it's the responsibility of the `ProjectStorageProviders`
     // to set the initial storage provider if an initial file metadata is set.
-    const state = await openFromFileMetadata(initialFileMetadataToOpen);
+    const state = await openFromFileMetadata(initialFileMetadataToOpen, {
+      ignoreAutoSave: Window.isRunningCommandFromCli(),
+    });
     if (state)
       openSceneOrProjectManager({
         currentProject: state.currentProject,
@@ -1188,21 +1193,28 @@ const MainFrame = (props: Props): React.MixedElement => {
       ResourcesLoader.burstAllUrlsCache();
       PixiResourcesLoader.burstCache();
 
+      // Set the on-disk path before exposing the project via state so that
+      // consumers (like the CLI command dispatcher) can call getProjectFile()
+      // immediately after the re-render triggered by setState.
+      if (updatedFileMetadata) {
+        project.setProjectFile(updatedFileMetadata.fileIdentifier);
+      }
+
+      // Start extension code generation before exposing the project via state.
+      // This ensures that when the CLI useEffect fires (triggered by the
+      // setState below), ensureLoadFinished() will see the pending promise
+      // and wait for generation to complete.
+      eventsFunctionsExtensionsState.loadProjectEventsFunctionsExtensions(
+        project
+      );
+
       const state = await setState(state => ({
         ...state,
         currentProject: project,
         currentFileMetadata: updatedFileMetadata,
       }));
 
-      // Load all the EventsFunctionsExtension when the game is loaded. If they are modified,
-      // their editor will take care of reloading them.
-      eventsFunctionsExtensionsState.loadProjectEventsFunctionsExtensions(
-        project
-      );
-
       if (updatedFileMetadata) {
-        project.setProjectFile(updatedFileMetadata.fileIdentifier);
-
         const storageProvider = getStorageProvider();
         const storageProviderOperations = getStorageProviderOperations(
           storageProvider
@@ -1241,6 +1253,18 @@ const MainFrame = (props: Props): React.MixedElement => {
             '[MainFrame] Failed to read project settings:',
             error.message
           );
+        }
+
+        // Apply the preview layout override stored in the project file
+        // (set via "Use this scene to start all previews").
+        const previewLayoutName = project.getPreviewLayout();
+        if (previewLayoutName && project.hasLayoutNamed(previewLayoutName)) {
+          setPreviewState(previewState => ({
+            ...previewState,
+            isPreviewOverriden: true,
+            overridenPreviewLayoutName: previewLayoutName,
+            overridenPreviewExternalLayoutName: null,
+          }));
         }
 
         setIsProjectClosedSoAvoidReloadingExtensions(false);
@@ -2250,6 +2274,19 @@ const MainFrame = (props: Props): React.MixedElement => {
       overridenPreviewLayoutName,
       overridenPreviewExternalLayoutName,
     }));
+
+    // Persist the preview layout override on the project (like firstLayout),
+    // so it is restored when the project is re-opened.
+    if (currentProject) {
+      const persistedLayoutName =
+        isPreviewOverriden && overridenPreviewLayoutName
+          ? overridenPreviewLayoutName
+          : '';
+      if (currentProject.getPreviewLayout() !== persistedLayoutName) {
+        currentProject.setPreviewLayout(persistedLayoutName);
+        triggerUnsavedChanges();
+      }
+    }
   };
 
   const autosaveProjectIfNeeded = React.useCallback(
@@ -2874,12 +2911,8 @@ const MainFrame = (props: Props): React.MixedElement => {
     openEventsFunctionsExtension,
   });
 
-  const previewPausedRef = React.useRef<boolean>(false);
-  const lastHitEventIndexRef = React.useRef<number>(-1);
-  const lastHitFunctionIdRef = React.useRef<string>('');
-  // Kept in sync with `state.editorTabs` so the breakpoint-hit handler can
-  // focus an already-open extension editor without re-subscribing to the
-  // debugger whenever tabs change.
+  // Ref so focusOnExtensionFunction sees the current tabs without needing
+  // to re-subscribe every time tabs change.
   const editorTabsRef = React.useRef(state.editorTabs);
   React.useEffect(
     () => {
@@ -2888,10 +2921,8 @@ const MainFrame = (props: Props): React.MixedElement => {
     [state.editorTabs]
   );
 
-  // Focus an extension editor on a specific function (free, behavior, or
-  // object method). If the tab is already open, we cannot rely on
-  // `initiallyFocused*` props (they are only consumed on mount), so we
-  // call `selectEventsFunctionByName` on the live editor ref directly.
+  // Open / focus an extension function editor. When the tab is already open,
+  // drives it via the live ref since `initiallyFocused*` props are mount-only.
   const focusOnExtensionFunction = React.useCallback(
     (
       extensionName: string,
@@ -2935,210 +2966,14 @@ const MainFrame = (props: Props): React.MixedElement => {
     [currentProject, setState, openEventsFunctionsExtension]
   );
 
-  // Navigate to the events tab when a breakpoint is hit; track paused
-  // state. Pause / step is CDP-driven — see `ElectronCDPBridge.js` and
-  // `PreviewWindow.js`.
-  type BreakpointHitHandler = (
-    functionId: string,
-    eventIndex: number,
-    sceneName: string
-  ) => void;
-  const handleBreakpointHitRef = React.useRef<?BreakpointHitHandler>(null);
-  React.useEffect(
-    () => {
-      const handleBreakpointHit = (
-        functionId: string,
-        eventIndex: number,
-        sceneName: string
-      ) => {
-        previewPausedRef.current = true;
-        lastHitEventIndexRef.current = eventIndex;
-        lastHitFunctionIdRef.current = functionId;
-
-        // If the hit is inside a local extension function, open its editor.
-        // We try free functions first, then methods of custom objects.
-        // Behavior methods are compiled with `compilationForRuntime: true`
-        // so they never emit breakpoint checks — we don't look for them.
-        if (functionId.startsWith('gdjs.evtsExt__') && currentProject) {
-          try {
-            const count = currentProject.getEventsFunctionsExtensionsCount();
-            for (let i = 0; i < count; i++) {
-              const ext = currentProject.getEventsFunctionsExtensionAt(i);
-              const prefix = gd.MetadataDeclarationHelper.getExtensionCodeNamespacePrefix(
-                ext
-              );
-              if (!functionId.startsWith(prefix)) continue;
-              if (ext.getOriginName() !== '') break;
-
-              const freeFuncs = ext.getEventsFunctions();
-              let resolved = false;
-              for (let j = 0; j < freeFuncs.getEventsFunctionsCount(); j++) {
-                const func = freeFuncs.getEventsFunctionAt(j);
-                const ns = gd.MetadataDeclarationHelper.getFreeFunctionCodeNamespace(
-                  func,
-                  prefix
-                );
-                if (ns === functionId) {
-                  focusOnExtensionFunction(
-                    ext.getName(),
-                    func.getName(),
-                    null,
-                    null
-                  );
-                  resolved = true;
-                  break;
-                }
-              }
-              if (resolved) return;
-
-              const ebos = ext.getEventsBasedObjects();
-              for (let k = 0; k < ebos.getCount(); k++) {
-                const ebo = ebos.getAt(k);
-                const objFuncs = ebo.getEventsFunctions();
-                for (let m = 0; m < objFuncs.getEventsFunctionsCount(); m++) {
-                  const func = objFuncs.getEventsFunctionAt(m);
-                  const ns = gd.MetadataDeclarationHelper.getObjectEventsFunctionFullyQualifiedContextName(
-                    ebo,
-                    func,
-                    prefix
-                  );
-                  if (ns === functionId) {
-                    focusOnExtensionFunction(
-                      ext.getName(),
-                      func.getName(),
-                      null,
-                      ebo.getName()
-                    );
-                    resolved = true;
-                    break;
-                  }
-                }
-                if (resolved) break;
-              }
-              if (resolved) return;
-              break;
-            }
-          } catch (_) {}
-        }
-
-        const layoutName = sceneName || previewState.previewLayoutName;
-        if (!layoutName) return;
-        openLayout(layoutName, {
-          openEventsEditor: true,
-          openSceneEditor: false,
-          focusWhenOpened: 'events',
-        });
-      };
-      handleBreakpointHitRef.current = handleBreakpointHit;
-
-      if (!previewDebuggerServer) return;
-      // `previewPausedRef` is driven authoritatively by
-      // `onPreviewDebuggerPauseChange`. The preview server connection
-      // lifecycle is used here only as a safety net: when the preview
-      // window closes, CDP detach does not emit a synthetic
-      // `Debugger.resumed`, so the refs would otherwise stay set to the
-      // last pause snapshot.
-      const resetPauseRefs = () => {
-        previewPausedRef.current = false;
-        lastHitEventIndexRef.current = -1;
-        lastHitFunctionIdRef.current = '';
-      };
-      const unregister = previewDebuggerServer.registerCallbacks({
-        onErrorReceived: () => {},
-        onServerStateChanged: () => {},
-        onConnectionClosed: resetPauseRefs,
-        onConnectionOpened: resetPauseRefs,
-        onConnectionErrored: () => {},
-        onHandleParsedMessage: () => {},
-      });
-      return unregister;
-    },
-    [
-      previewDebuggerServer,
-      previewState.previewLayoutName,
-      openLayout,
-      focusOnExtensionFunction,
-      currentProject,
-    ]
-  );
-
-  // CDP pause / resume forwarded from Electron main — fires reliably
-  // even while V8 is frozen on a `debugger;` statement and carries the
-  // current breakpoint snapshot for UI navigation.
-  React.useEffect(() => {
-    const unregister = onPreviewDebuggerPauseChange((isPaused, payload) => {
-      const breakpoint = payload && payload.breakpoint;
-      if (
-        isPaused &&
-        breakpoint &&
-        typeof breakpoint.eventIndex === 'number' &&
-        typeof breakpoint.functionId === 'string' &&
-        handleBreakpointHitRef.current
-      ) {
-        handleBreakpointHitRef.current(
-          breakpoint.functionId,
-          breakpoint.eventIndex,
-          breakpoint.sceneName || ''
-        );
-      } else if (!isPaused) {
-        previewPausedRef.current = false;
-        lastHitEventIndexRef.current = -1;
-        lastHitFunctionIdRef.current = '';
-      }
-    });
-    return unregister;
-  }, []);
-
-  // Breakpoints, Pause / Next Event all require V8 to truly freeze on
-  // `debugger;` — that is only possible when Electron's main process is
-  // attached via CDP. In web / remote previews we surface a one-shot
-  // notification instead (suggested by the user: "notify that the feature
-  // isn't supported and ask to use local preview").
-  const notifyBreakpointsUnsupported = React.useCallback(
-    () => {
-      showAlert({
-        title: t`Debugger not available here`,
-        message: t`Pausing, stepping and breakpoints only work in the local Electron preview. Please use "Preview" (F5) on this computer to debug your events.`,
-      });
-    },
-    [showAlert]
-  );
-
-  const togglePauseExecution = React.useCallback(
-    () => {
-      if (!previewDebuggerServer) return;
-      if (!isElectronCDPBridgeAvailable()) {
-        notifyBreakpointsUnsupported();
-        return;
-      }
-      if (previewPausedRef.current) {
-        resumePausedPreview();
-        previewPausedRef.current = false;
-      } else {
-        // Scheduling "pause at next event" via CDP Runtime.evaluate. The
-        // preview is running, so V8 processes the write immediately and the
-        // actual pause happens inside the next `__checkBreakpoint` call.
-        schedulePauseAtNextEvent();
-      }
-    },
-    [previewDebuggerServer, notifyBreakpointsUnsupported]
-  );
-
-  const stepNextEvent = React.useCallback(
-    () => {
-      if (!previewDebuggerServer) return;
-      if (!isElectronCDPBridgeAvailable()) {
-        notifyBreakpointsUnsupported();
-        return;
-      }
-      if (!previewPausedRef.current) return;
-      stepPausedPreview({
-        currentEventIndex: lastHitEventIndexRef.current,
-        currentFunctionId: lastHitFunctionIdRef.current,
-      });
-    },
-    [previewDebuggerServer, notifyBreakpointsUnsupported]
-  );
+  const { togglePauseExecution, stepNextEvent } = useBreakpointDebugger({
+    previewDebuggerServer,
+    currentProject,
+    previewLayoutName: previewState.previewLayoutName,
+    openLayout,
+    focusOnExtensionFunction,
+    showAlert,
+  });
 
   const onEditorTabClosing = React.useCallback(
     (editorTab: EditorTab) => {
@@ -3660,7 +3495,10 @@ const MainFrame = (props: Props): React.MixedElement => {
   );
 
   const onEventsBasedObjectChildrenEdited = React.useCallback(
-    (eventsBasedObject: gdEventsBasedObject) => {
+    (
+      eventsBasedObject: gdEventsBasedObject,
+      options?: {| editedObject?: ?gdObject, hasResourceChanged?: boolean |}
+    ) => {
       const project = state.currentProject;
       if (!project) {
         return;
@@ -3673,7 +3511,10 @@ const MainFrame = (props: Props): React.MixedElement => {
       for (const editor of getAllEditorTabs(state.editorTabs)) {
         const { editorRef } = editor;
         if (editorRef) {
-          editorRef.onEventsBasedObjectChildrenEdited();
+          editorRef.onEventsBasedObjectChildrenEdited(
+            eventsBasedObject,
+            options
+          );
         }
       }
     },
@@ -3681,11 +3522,19 @@ const MainFrame = (props: Props): React.MixedElement => {
   );
 
   const onSceneObjectEdited = React.useCallback(
-    (scene: gdLayout, objectWithContext: ObjectWithContext) => {
+    (
+      scene: gdLayout,
+      objectWithContext: ObjectWithContext,
+      hasResourceChanged?: boolean
+    ) => {
       for (const editor of getAllEditorTabs(state.editorTabs)) {
         const { editorRef } = editor;
         if (editorRef) {
-          editorRef.onSceneObjectEdited(scene, objectWithContext);
+          editorRef.onSceneObjectEdited(
+            scene,
+            objectWithContext,
+            hasResourceChanged
+          );
         }
       }
     },
@@ -3755,12 +3604,33 @@ const MainFrame = (props: Props): React.MixedElement => {
     [state.editorTabs]
   );
 
+  const selectAllInActiveEditors = React.useCallback(
+    () => {
+      if (isUserTyping()) {
+        document.execCommand('selectAll');
+        return;
+      }
+
+      for (const paneIdentifier in state.editorTabs.panes) {
+        const currentTab = getCurrentTabForPane(
+          state.editorTabs,
+          paneIdentifier
+        );
+        const editorRef = currentTab ? currentTab.editorRef : null;
+        if (editorRef) {
+          editorRef.selectAllInsideEditor();
+        }
+      }
+    },
+    [state.editorTabs]
+  );
+
   const _onProjectItemModified = () => {
     triggerUnsavedChanges();
     forceUpdate();
   };
 
-  const onCreateEventsFunction = (
+  const onCreateEventsFunction = async (
     extensionName: string,
     eventsFunction: gdEventsFunction,
     editorIdentifier:
@@ -3792,7 +3662,7 @@ const MainFrame = (props: Props): React.MixedElement => {
     }
 
     extension.getEventsFunctions().insertEventsFunction(eventsFunction, 0);
-    eventsFunctionsExtensionsState.loadProjectEventsFunctionsExtensions(
+    await eventsFunctionsExtensionsState.loadProjectEventsFunctionsExtensions(
       currentProject
     );
     setEditorHotReloadNeeded({
@@ -4483,6 +4353,8 @@ const MainFrame = (props: Props): React.MixedElement => {
           skipNewVersionWarning:
             !!checkedOutVersionStatus ||
             (options && options.skipNewVersionWarning),
+          canonicalEventSerialization:
+            preferences.values.canonicalEventSerialization,
         };
         if (cloudProjectRecoveryOpenedVersionId) {
           saveOptions.previousVersion = cloudProjectRecoveryOpenedVersionId;
@@ -5165,6 +5037,15 @@ const MainFrame = (props: Props): React.MixedElement => {
     onExportGame: () => {
       openShareDialog('publish');
     },
+    onExportHtml5External: async () => {
+      const project = state.currentProject;
+      if (!project || !onExportHtml5External) return;
+      try {
+        await onExportHtml5External(project, i18n);
+      } catch (error) {
+        console.error('Headless HTML5 export failed:', error);
+      }
+    },
     onInviteCollaborators: () => {
       openShareDialog('invite');
     },
@@ -5181,6 +5062,12 @@ const MainFrame = (props: Props): React.MixedElement => {
     onOpenMemoryTrackerRegistry: () => setMemoryTrackedRegistryDialogOpen(true),
     onTogglePauseExecution: togglePauseExecution,
     onStepNextEvent: stepNextEvent,
+  });
+
+  useCliCommandRunner({
+    project: state.currentProject,
+    i18n,
+    commandPaletteRef,
   });
 
   const resourceManagementProps: ResourceManagementProps = React.useMemo(
@@ -5300,6 +5187,7 @@ const MainFrame = (props: Props): React.MixedElement => {
     onOpenLanguage: () => openLanguageDialog(true),
     onOpenProfile: onOpenProfileDialog,
     onOpenAskAi: openAskAi,
+    onSelectAll: selectAllInActiveEditors,
     setElectronUpdateStatus: setElectronUpdateStatus,
   };
 
@@ -5700,7 +5588,7 @@ const MainFrame = (props: Props): React.MixedElement => {
         language={props.i18n.language}
         hasUnsavedChanges={hasUnsavedChanges}
       />
-      <ChangelogDialogContainer />
+      {!Window.isRunningCommandFromCli() && <ChangelogDialogContainer />}
       {selectedInAppTutorialInfo && (
         <StartInAppTutorialDialog
           open

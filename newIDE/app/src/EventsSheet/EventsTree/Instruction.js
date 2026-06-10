@@ -45,6 +45,7 @@ import {
   ProjectScopedContainersAccessor,
 } from '../../InstructionOrExpression/EventsScope';
 import { enumerateParametersUsableInExpressions } from '../ParameterFields/EnumerateFunctionParameters';
+import { getLastObjectParameterValue } from '../ParameterFields/ParameterMetadataTools';
 import { getFunctionNameFromType } from '../../EventsFunctionsExtensionsLoader';
 import { ExtensionStoreContext } from '../../AssetStore/ExtensionStore/ExtensionStoreContext';
 import Warning from '../../UI/CustomSvgIcons/Warning';
@@ -259,23 +260,6 @@ const Instruction = (props: Props): React.Node => {
     );
     const parametersCount = metadata.getParametersCount();
 
-    // For each parameter, remember the most recent `object`-typed
-    // parameter value that precedes it in the same instruction. This is
-    // what `objectvar` tooltips need to resolve `<object>.<variable>`
-    // values at pause time — the `objectvar` parameter on its own only
-    // carries the variable path.
-    const lastObjectNamePerParameter: Array<?string> = new Array<?string>(
-      parametersCount
-    ).fill(null);
-    let trackedLastObjectName: ?string = null;
-    for (let p = 0; p < parametersCount; p++) {
-      lastObjectNamePerParameter[p] = trackedLastObjectName;
-      const paramType = metadata.getParameter(p).getType();
-      if (gd.ParameterMetadata.isObject(paramType)) {
-        trackedLastObjectName = instruction.getParameter(p).getPlainString();
-      }
-    }
-
     return (
       <span
         className={classNames({
@@ -398,8 +382,15 @@ const Instruction = (props: Props): React.Node => {
               className={classNames({
                 [selectableArea]: true,
                 [instructionParameter]: true,
+                // Resources are string literals they use the same color as strings.
                 // $FlowFixMe[invalid-computed-prop]
-                [parameterType]: true,
+                [parameterMetadata.getValueTypeMetadata().isResource()
+                  ? 'resource'
+                  : parameterType]:
+                  // Variables, numbers and strings are expressions with syntax coloring.
+                  parameterType !== 'number' &&
+                  parameterType !== 'string' &&
+                  !parameterMetadata.getValueTypeMetadata().isVariable(),
               })}
               onClick={domEvent => {
                 props.onParameterClick(domEvent, parameterIndex);
@@ -422,6 +413,7 @@ const Instruction = (props: Props): React.Node => {
               {ParameterRenderingService.renderInlineParameter({
                 scope,
                 value: formattedValue,
+                expression: instruction.getParameter(parameterIndex),
                 expressionIsValid,
                 hasDeprecationWarning,
                 parameterMetadata,
@@ -435,7 +427,13 @@ const Instruction = (props: Props): React.Node => {
                 highlightedSearchText: props.highlightedSearchText,
                 highlightedSearchMatchCase: props.highlightedSearchMatchCase,
                 runtimeVariables,
-                lastObjectName: lastObjectNamePerParameter[parameterIndex],
+                lastObjectName: getLastObjectParameterValue({
+                  instructionMetadata: metadata,
+                  instruction,
+                  expressionMetadata: null,
+                  expression: null,
+                  parameterIndex,
+                }),
               })}
             </span>
           );

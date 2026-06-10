@@ -5,39 +5,14 @@
  */
 
 /**
- * Preview-only globals attached to the `gdjs` namespace and `window` by
- * the Electron main process over Chrome DevTools Protocol and by
- * `gdjs.installBreakpointDebugSupport`. All fields are optional because
- * none exist in production builds.
+ * Preview-only global attached to `window` by the Electron CDP bootstrap.
+ * Optional because it never exists in production builds.
  */
-
-declare namespace gdjs {
-  /**
-   * Set to `true` by the CDP bootstrap script once Electron main's debugger
-   * is driving the preview window. Generated event code gates the
-   * `debugger;` branch on this flag.
-   */
-  var __cdpAttached: boolean | undefined;
-
-  /**
-   * Installed at preview startup by `installBreakpointDebugSupport`. Called
-   * over CDP `Runtime.evaluate` while V8 is paused to serialize the minimal
-   * variables dump for the IDE.
-   */
-  var __buildBreakpointDumpJson: (() => string) | undefined;
-
-  /**
-   * Last-created preview `RuntimeGame`. Exposed so the IDE and the CDP
-   * bootstrap fallback can reach `_debugState` without traversing the
-   * renderer.
-   */
-  var game: gdjs.RuntimeGame | undefined;
-}
 
 /**
  * Entry recognized inside `window.__gdjsInitialBreakpoints`. Injected by
  * the CDP bootstrap script before the generated game script runs; consumed
- * once by `installBreakpointDebugSupport` and then deleted.
+ * once by the breakpoint manager and then deleted.
  */
 declare type InitialBreakpointEntry = {
   functionId: string;
