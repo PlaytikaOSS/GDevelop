@@ -4,13 +4,14 @@ import { type I18n as I18nType } from '@lingui/core';
 import { type MessageDescriptor } from '../Utils/i18n/MessageDescriptor.flow';
 import { exceptionallyGuardAgainstDeadObject } from '../Utils/IsNullPtr';
 import { I18n } from '@lingui/react';
+import { type RenderEditorContainerPropsWithRef } from '../MainFrame/EditorContainers/BaseEditor';
 import {
-  type RenderEditorContainerPropsWithRef,
   type SceneEventsOutsideEditorChanges,
   type InstancesOutsideEditorChanges,
   type ObjectsOutsideEditorChanges,
   type ObjectGroupsOutsideEditorChanges,
-} from '../MainFrame/EditorContainers/BaseEditor';
+  type ProjectItemRenamedOutsideEditorChanges,
+} from '../EditorFunctions/OutsideEditorChanges';
 import { type ObjectWithContext } from '../ObjectsList/EnumerateObjects';
 import Paper from '../UI/Paper';
 import { AiRequestChat, type AiRequestChatInterface } from './AiRequestChat';
@@ -42,7 +43,6 @@ import { retryIfFailed } from '../Utils/RetryIfFailed';
 import { type EditorCallbacks } from '../EditorFunctions';
 import {
   aiRequestHasWorkInProgress,
-  getFunctionCallNameByCallId,
   getFunctionCallOutputsFromEditorFunctionCallResults,
   getFunctionCallsToProcess,
 } from './AiRequestUtils';
@@ -80,7 +80,6 @@ import {
   useActivatePendingSubAgents,
   useLoadSubAgentRequests,
   useRefreshLimits,
-  getToolsVersionForAiRequestMode,
   AI_ORCHESTRATOR_TOOLS_VERSION,
 } from './Utils';
 import PreferencesContext from '../MainFrame/Preferences/PreferencesContext';
@@ -153,6 +152,9 @@ type Props = {|
   ) => void,
   onObjectGroupsModifiedOutsideEditor: (
     changes: ObjectGroupsOutsideEditorChanges
+  ) => void,
+  onProjectItemRenamedOutsideEditor: (
+    changes: ProjectItemRenamedOutsideEditorChanges
   ) => void,
   onWillInstallExtension: (extensionNames: Array<string>) => void,
   onExtensionInstalled: (extensionNames: Array<string>) => void,
@@ -252,6 +254,7 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
         onInstancesModifiedOutsideEditor,
         onObjectsModifiedOutsideEditor,
         onObjectGroupsModifiedOutsideEditor,
+        onProjectItemRenamedOutsideEditor,
         onWillInstallExtension,
         onExtensionInstalled,
         onOpenAskAi,
@@ -564,7 +567,7 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
                 fileMetadata,
                 storageProviderName,
                 mode,
-                toolsVersion: getToolsVersionForAiRequestMode(mode),
+                toolsVersion: AI_ORCHESTRATOR_TOOLS_VERSION,
                 aiConfiguration: {
                   presetId: aiConfigurationPresetId,
                 },
@@ -750,17 +753,6 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
               eventsJson: null,
             });
 
-            // If we're updating the request, following a function call to initialize the project,
-            // pause the request, so that suggestions can be given by the agent.
-            const hasJustInitializedProject =
-              functionCallOutputs.length > 0 &&
-              functionCallOutputs.some(
-                output =>
-                  getFunctionCallNameByCallId({
-                    aiRequest: aiRequestForMessage,
-                    callId: output.call_id,
-                  }) === 'initialize_project'
-              );
             if (
               editorFunctionCallResults &&
               editorFunctionCallResults.some(
@@ -788,9 +780,6 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
                   : undefined,
                 payWithCredits,
                 userMessage,
-                paused:
-                  hasJustInitializedProject &&
-                  aiRequestForMessage.mode === 'agent',
                 // All requests made by the user are in orchestrator mode: set
                 // it (and the tools version) when a user message is sent, in
                 // case an older request made with another mode is being
@@ -932,6 +921,7 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
         onInstancesModifiedOutsideEditor,
         onObjectsModifiedOutsideEditor,
         onObjectGroupsModifiedOutsideEditor,
+        onProjectItemRenamedOutsideEditor,
         i18n,
         onWillInstallExtension,
         onExtensionInstalled,
@@ -1642,6 +1632,9 @@ export const renderAskAiEditorContainer = (
         onObjectsModifiedOutsideEditor={props.onObjectsModifiedOutsideEditor}
         onObjectGroupsModifiedOutsideEditor={
           props.onObjectGroupsModifiedOutsideEditor
+        }
+        onProjectItemRenamedOutsideEditor={
+          props.onProjectItemRenamedOutsideEditor
         }
         onWillInstallExtension={props.onWillInstallExtension}
         onExtensionInstalled={props.onExtensionInstalled}
