@@ -11,15 +11,11 @@ const styles = {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    width: '100%',
-    height: '100%',
   },
   cardContainer: {
     overflow: 'hidden',
     position: 'relative',
     borderRadius: 8,
-    width: '100%',
-    aspectRatio: '1 / 1',
   },
   titleContainer: {
     position: 'absolute',
@@ -40,6 +36,7 @@ const styles = {
 
 type Props = {|
   id?: string,
+  size: number,
   assetShortHeader: AssetShortHeader,
   hideShortDescription?: boolean,
 |};
@@ -47,16 +44,21 @@ type Props = {|
 export const AssetCard = ({
   id,
   assetShortHeader,
+  size,
   hideShortDescription,
 }: Props): React.MixedElement => {
   const displayShortDescription =
     !hideShortDescription && !!assetShortHeader.shortDescription;
 
   return (
-    <div id={id} style={styles.cardContainer}>
-      <div style={styles.previewContainer}>
+    <div id={id} style={{ ...styles.cardContainer, width: size, height: size }}>
+      <div style={{ ...styles.previewContainer, width: size, height: size }}>
         <CheckeredBackground />
-        <AssetPreviewImage assetShortHeader={assetShortHeader} loading="lazy" />
+        <AssetPreviewImage
+          assetShortHeader={assetShortHeader}
+          maxSize={size}
+          loading="lazy"
+        />
       </div>
       <div
         style={{
@@ -68,7 +70,7 @@ export const AssetCard = ({
           {assetShortHeader.name}
         </Text>
         {displayShortDescription && (
-          <Text noMargin style={styles.title} size="body-small" color="inherit">
+          <Text noMargin style={styles.title} size="body2" color="inherit">
             {assetShortHeader.shortDescription}
           </Text>
         )}

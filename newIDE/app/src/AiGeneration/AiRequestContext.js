@@ -107,7 +107,7 @@ type AiRequestStorage = {|
   aiRequests: { [string]: AiRequest },
   updateAiRequest: (
     aiRequestId: string,
-    updateFn: (previousAiRequest: ?AiRequest) => AiRequest
+    updateFn: (prevAiRequest: ?AiRequest) => AiRequest
   ) => void,
   refreshAiRequest: (aiRequestId: string) => Promise<void>,
   isSendingAiRequest: (aiRequestId: string | null) => boolean,
@@ -231,7 +231,7 @@ export const useAiRequestsStorage = (): AiRequestStorage => {
   const updateAiRequest = React.useCallback(
     (
       aiRequestId: string,
-      updateFn: (previousAiRequest: ?AiRequest) => AiRequest
+      updateFn: (prevAiRequest: ?AiRequest) => AiRequest
     ) => {
       setState(prevState => {
         const currentAiRequest = prevState.aiRequests
@@ -518,35 +518,6 @@ type AiRequestProviderProps = {|
   children: React.Node,
 |};
 
-// Merge an incremental fetch (only the messages from `outputFromMessageId` onward)
-// back onto the cached request. When the response isn't an incremental slice
-// of what we have (no cache, unknown id, or the backend returned the full
-// output), we just use the fetched request as-is.
-export const mergeIncrementalAiRequest = (
-  previousAiRequest: ?AiRequest,
-  fetchedAiRequest: AiRequest,
-  outputFromMessageId: ?string
-): AiRequest => {
-  const fetchedOutput = fetchedAiRequest.output || [];
-  const previousOutput = previousAiRequest && previousAiRequest.output;
-  const isIncrementalSlice =
-    !!outputFromMessageId &&
-    !!previousOutput &&
-    fetchedOutput.length > 0 &&
-    fetchedOutput[0].messageId === outputFromMessageId;
-  if (!isIncrementalSlice || !previousOutput) return fetchedAiRequest;
-
-  const spliceIndex = previousOutput.findIndex(
-    message => message.messageId === outputFromMessageId
-  );
-  if (spliceIndex === -1) return fetchedAiRequest;
-
-  return {
-    ...fetchedAiRequest,
-    output: [...previousOutput.slice(0, spliceIndex), ...fetchedOutput],
-  };
-};
-
 export const AiRequestProvider = ({
   children,
 }: AiRequestProviderProps): React.MixedElement => {
@@ -572,12 +543,7 @@ export const AiRequestProvider = ({
     setIsFetchingSuggestions,
   ] = React.useState<boolean>(false);
   const lastFullFetchTimeRef = React.useRef<number>(0);
-
-  // Every status change (new tool call to run, agent finished/errored,
-  // sub-agent launched...) is caught by polling for status changes, which
-  // then fetches the latest messages of an AiRequest. Still do a fetch
-  // manually once in a while as a fail-safe.
-  const fullFetchIntervalInMs = 7000;
+  const fullFetchIntervalInMs = 5000;
 
   // The selected AI request and its active sub-agents are watched together by a
   // single polling loop defined further below (see `onWatch`), so that a parent
@@ -700,10 +666,14 @@ export const AiRequestProvider = ({
     [aiRequests, removeSubAgent]
   );
 
-  // Watch loop for the selected AI request and all its active
-  // sub-agents.
-  // All the status-only checks for a given tick are batched
-  // into a single request instead of one request per entity.
+  // Unified watch loop for the selected AI request and all its active
+  // sub-agents. Each entity still does a full fetch every ~5s (to pick up new
+  // messages) and a status-only check in between. The key difference from doing
+  // this per-entity is that all the status-only checks for a given tick are
+  // batched into a SINGLE request (`getAiRequestStatuses`) instead of one
+  // request (and one Lambda invocation) per entity. The polling cadence — and
+  // therefore the latency to react to a sub-agent's editor tool call — is
+  // unchanged.
   const onWatch = async () => {
     if (!profile) return;
     const now = Date.now();
@@ -732,39 +702,19 @@ export const AiRequestProvider = ({
       } else {
         lastFullFetchTimeRef.current = now;
       }
-      // Only fetch the messages we don't have yet: ask for everything from the
-      // last message we already have onward (re-fetched so its in-place
-      // updates, like suggestions, are picked up).
-      const currentOutput = (aiRequests[aiRequestId] || {}).output;
-      const lastMessage =
-        currentOutput && currentOutput.length > 0
-          ? currentOutput[currentOutput.length - 1]
-          : null;
-      const outputFromMessageId =
-        (lastMessage && lastMessage.messageId) || undefined;
-      const fetchedAiRequest = await retryIfFailed({ times: 2 }, () =>
+      const aiRequest = await retryIfFailed({ times: 2 }, () =>
         getAiRequest(getAuthorizationHeader, {
           userId: profile.id,
           aiRequestId,
-          outputFromMessageId,
         })
       );
-      updateAiRequest(aiRequestId, previousAiRequest =>
-        mergeIncrementalAiRequest(
-          previousAiRequest,
-          fetchedAiRequest,
-          outputFromMessageId
-        )
-      );
+      updateAiRequest(aiRequestId, () => aiRequest);
       if (isSubAgent) {
-        if (
-          fetchedAiRequest.status === 'ready' ||
-          fetchedAiRequest.status === 'error'
-        ) {
+        if (aiRequest.status === 'ready' || aiRequest.status === 'error') {
           removeSubAgentIfDone(aiRequestId);
         }
       } else {
-        clearFetchingSuggestionsIfDone(fetchedAiRequest);
+        clearFetchingSuggestionsIfDone(aiRequest);
       }
     };
 

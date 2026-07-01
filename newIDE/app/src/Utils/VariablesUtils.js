@@ -3,7 +3,6 @@ import { mapFor } from './MapFor';
 import newNameGenerator from './NewNameGenerator';
 import { normalizeString } from './Search';
 import { unserializeFromJSObject } from './Serializer';
-
 const gd: libGDevelop = global.gd;
 
 export const hasChildThatContainsStringInNameOrValue = (

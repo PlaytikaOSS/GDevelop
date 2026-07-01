@@ -600,7 +600,7 @@ const ProjectManager = React.forwardRef<Props, ProjectManagerInterface>(
     const onOpenLayoutProperties = React.useCallback((layout: ?gdLayout) => {
       setEditedPropertiesLayout(layout);
     }, []);
-    const openSceneVariables = React.useCallback((layout: ?gdLayout) => {
+    const onOpenLayoutVariables = React.useCallback((layout: ?gdLayout) => {
       setEditedVariablesLayout(layout);
     }, []);
 
@@ -906,7 +906,7 @@ const ProjectManager = React.forwardRef<Props, ProjectManagerInterface>(
               onRenameLayout,
               onOpenLayout,
               onOpenLayoutProperties,
-              openSceneVariables,
+              onOpenLayoutVariables,
             }
           : null,
       [
@@ -924,7 +924,7 @@ const ProjectManager = React.forwardRef<Props, ProjectManagerInterface>(
         onRenameLayout,
         onOpenLayout,
         onOpenLayoutProperties,
-        openSceneVariables,
+        onOpenLayoutVariables,
       ]
     );
 
@@ -1481,7 +1481,7 @@ const ProjectManager = React.forwardRef<Props, ProjectManagerInterface>(
                         }}
                         onClose={() => onOpenLayoutProperties(null)}
                         onEditVariables={() => {
-                          openSceneVariables(editedPropertiesLayout);
+                          onOpenLayoutVariables(editedPropertiesLayout);
                           onOpenLayoutProperties(null);
                         }}
                         resourceManagementProps={resourceManagementProps}
@@ -1498,10 +1498,10 @@ const ProjectManager = React.forwardRef<Props, ProjectManagerInterface>(
                       open
                       project={project}
                       layout={editedVariablesLayout}
-                      onCancel={() => openSceneVariables(null)}
+                      onCancel={() => onOpenLayoutVariables(null)}
                       onApply={() => {
                         triggerUnsavedChanges();
-                        openSceneVariables(null);
+                        onOpenLayoutVariables(null);
                       }}
                       hotReloadPreviewButtonProps={hotReloadPreviewButtonProps}
                       isListLocked={false}

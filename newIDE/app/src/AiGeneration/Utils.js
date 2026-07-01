@@ -37,7 +37,6 @@ import { useSearchAndInstallResource } from './UseSearchAndInstallResource';
 import { type ResourceManagementProps } from '../ResourcesList/ResourceSource';
 import { AiRequestContext } from './AiRequestContext';
 import { ObjectStoreContext } from '../AssetStore/ObjectStoreContext';
-import { enumerateObjectTypes } from '../ObjectsList/EnumerateObjects';
 
 import { delay } from '../Utils/Delay';
 import { retryIfFailed } from '../Utils/RetryIfFailed';
@@ -200,22 +199,10 @@ export const useProcessFunctionCalls = ({
   );
   const getAssetStoreTagForNewObject = React.useCallback(
     (objectType: string): string | null => {
-      // Prefer the installed object metadata (same source as the
-      // "New object" dialog in the editor).
-      const installedObjectMetadata = project
-        ? enumerateObjectTypes(project, null).find(
-            enumeratedObjectMetadata =>
-              enumeratedObjectMetadata.type === objectType
-          )
-        : null;
-      if (installedObjectMetadata && installedObjectMetadata.assetStoreTag) {
-        return installedObjectMetadata.assetStoreTag;
-      }
-
       const header = translatedObjectShortHeadersByType[objectType];
       return (header && header.assetStoreTag) || null;
     },
-    [project, translatedObjectShortHeadersByType]
+    [translatedObjectShortHeadersByType]
   );
 
   // In-memory guard against duplicate processing of the same function call.

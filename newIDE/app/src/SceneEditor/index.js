@@ -798,7 +798,7 @@ export default class SceneEditor extends React.Component<Props, State> {
           redo={this.redo}
           onOpenSettings={this.openSceneProperties}
           settingsIcon={editSceneIconReactNode}
-          onOpenSceneVariables={this.openSceneVariables}
+          onOpenSceneVariables={this.editLayoutVariables}
         />
       );
     } else {
@@ -828,7 +828,7 @@ export default class SceneEditor extends React.Component<Props, State> {
           redo={this.redo}
           onOpenSettings={this.openSceneProperties}
           settingsIcon={editSceneIconReactNode}
-          onOpenSceneVariables={this.openSceneVariables}
+          onOpenSceneVariables={this.editLayoutVariables}
         />
       );
     }
@@ -956,7 +956,7 @@ export default class SceneEditor extends React.Component<Props, State> {
     this.setState({ variablesEditedInstance: instance });
   };
 
-  openSceneVariables = (open: boolean = true) => {
+  editLayoutVariables = (open: boolean = true) => {
     this.setState({ layoutVariablesDialogOpen: open });
   };
 
@@ -1749,8 +1749,6 @@ export default class SceneEditor extends React.Component<Props, State> {
   };
 
   _sendSetBackgroundColor = () => {
-    this.forceUpdatePropertiesEditor();
-    this.forceUpdateLayersList();
     const { previewDebuggerServer, layout } = this.props;
     if (!layout) {
       return;
@@ -3135,7 +3133,6 @@ export default class SceneEditor extends React.Component<Props, State> {
                     onEventsBasedObjectChildrenEdited={
                       this.props.onEventsBasedObjectChildrenEdited
                     }
-                    openSceneVariables={this.openSceneVariables}
                   />
                   <React.Fragment>
                     {editedObjectWithContext && (
@@ -3166,9 +3163,12 @@ export default class SceneEditor extends React.Component<Props, State> {
                         }}
                         onCancel={() => {
                           if (editedObjectWithContext) {
+                            // Object changes are reverted but not the
+                            // resources modified with an external editor, so
+                            // force a reload from the disk to pick those up.
                             this.props.onObjectEdited(
                               editedObjectWithContext,
-                              false
+                              true
                             );
                           }
                           this.editObject(null);
@@ -3419,7 +3419,7 @@ export default class SceneEditor extends React.Component<Props, State> {
                       layout={layout}
                       onClose={() => this.openSceneProperties(false)}
                       onApply={() => this.openSceneProperties(false)}
-                      onEditVariables={() => this.openSceneVariables(true)}
+                      onEditVariables={() => this.editLayoutVariables(true)}
                       onOpenMoreSettings={this.props.onOpenMoreSettings}
                       resourceManagementProps={
                         this.props.resourceManagementProps
@@ -3476,8 +3476,8 @@ export default class SceneEditor extends React.Component<Props, State> {
                       open
                       project={project}
                       layout={layout}
-                      onApply={() => this.openSceneVariables(false)}
-                      onCancel={() => this.openSceneVariables(false)}
+                      onApply={() => this.editLayoutVariables(false)}
+                      onCancel={() => this.editLayoutVariables(false)}
                       hotReloadPreviewButtonProps={
                         this.props.hotReloadPreviewButtonProps
                       }

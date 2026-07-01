@@ -762,8 +762,6 @@ export class BehaviorsSharedData extends EmscriptenObject {
   getProperties(): MapStringPropertyDescriptor;
   updateProperty(name: string, value: string): boolean;
   initializeContent(): void;
-  isFolded(): boolean;
-  setFolded(folded: boolean): void;
   getPropertiesQuickCustomizationVisibilities(): QuickCustomizationVisibilitiesContainer;
 }
 
@@ -1702,7 +1700,6 @@ export class ObjectMetadata extends EmscriptenObject {
   getHelpPath(): string;
   getCategory(): string;
   getAssetStoreTag(): string;
-  setHelpPath(helpPath: string): ObjectMetadata;
   setCategory(categoryFullName: string): ObjectMetadata;
   setAssetStoreTag(assetStoreTag: string): ObjectMetadata;
   addInGameEditorResource(): InGameEditorResourceMetadata;
@@ -1773,7 +1770,6 @@ export class BehaviorMetadata extends EmscriptenObject {
   getGroup(): string;
   getIconFilename(): string;
   getHelpPath(): string;
-  setHelpPath(helpPath: string): BehaviorMetadata;
   addScopedCondition(name: string, fullname: string, description: string, sentence: string, group: string, icon: string, smallicon: string): InstructionMetadata;
   addScopedAction(name: string, fullname: string, description: string, sentence: string, group: string, icon: string, smallicon: string): InstructionMetadata;
   addCondition(name: string, fullname: string, description: string, sentence: string, group: string, icon: string, smallicon: string): InstructionMetadata;
@@ -2218,9 +2214,7 @@ export class PropertyFunctionGenerator extends EmscriptenObject {
   static generateBehaviorGetterAndSetter(project: Project, extension: EventsFunctionsExtension, eventsBasedBehavior: EventsBasedBehavior, property: NamedPropertyDescriptor, isSharedProperties: boolean): void;
   static generateObjectGetterAndSetter(project: Project, extension: EventsFunctionsExtension, eventsBasedObject: EventsBasedObject, property: NamedPropertyDescriptor): void;
   static canGenerateGetterAndSetter(eventsBasedBehavior: AbstractEventsBasedEntity, property: NamedPropertyDescriptor): boolean;
-  static generateConditionSkeleton(project: Project, eventsFunction: EventsFunction): void;
-  static generateExpressionSkeleton(project: Project, eventsFunction: EventsFunction): void;
-  static updateReturnActionType(project: Project, eventsFunction: EventsFunction): void;
+  static generateConditionSkeleton(project: Project, eventFunction: EventsFunction): void;
 }
 
 export class UsedExtensionsResult extends EmscriptenObject {
@@ -3264,7 +3258,6 @@ export class PreviewExportOptions extends EmscriptenObject {
   setFullLoadingScreen(enable: boolean): PreviewExportOptions;
   setIsDevelopmentEnvironment(enable: boolean): PreviewExportOptions;
   setIsInGameEdition(enable: boolean): PreviewExportOptions;
-  setCdpDebuggerEnabled(enable: boolean): PreviewExportOptions;
   setInGameEditorSettingsJson(inGameEditorSettingsJson: string): PreviewExportOptions;
   setEditorId(editorId: string): PreviewExportOptions;
   setEditorCameraState3D(cameraMode: string, positionX: number, positionY: number, positionZ: number, rotationAngle: number, elevationAngle: number, distance: number): PreviewExportOptions;
@@ -3331,13 +3324,11 @@ export class MetadataDeclarationHelper extends EmscriptenObject {
   generateFreeFunctionMetadata(project: Project, extension: PlatformExtension, eventsFunctionsExtension: EventsFunctionsExtension, eventsFunction: EventsFunction): AbstractFunctionMetadata;
   static generateBehaviorMetadata(project: Project, extension: PlatformExtension, eventsFunctionsExtension: EventsFunctionsExtension, eventsBasedBehavior: EventsBasedBehavior, behaviorMethodMangledNames: MapStringString): BehaviorMetadata;
   static generateObjectMetadata(project: Project, extension: PlatformExtension, eventsFunctionsExtension: EventsFunctionsExtension, eventsBasedObject: EventsBasedObject, objectMethodMangledNames: MapStringString): ObjectMetadata;
-  static getSceneCodeNamespace(sceneName: string): string;
   static getExtensionCodeNamespacePrefix(eventsFunctionsExtension: EventsFunctionsExtension): string;
   static getFreeFunctionCodeName(eventsFunctionsExtension: EventsFunctionsExtension, eventsFunction: EventsFunction): string;
   static getFreeFunctionCodeNamespace(eventsFunction: EventsFunction, codeNamespacePrefix: string): string;
   static getBehaviorFunctionCodeNamespace(eventsBasedBehavior: EventsBasedBehavior, codeNamespacePrefix: string): string;
   static getObjectFunctionCodeNamespace(eventsBasedObject: EventsBasedObject, codeNamespacePrefix: string): string;
-  static getObjectEventsFunctionFullyQualifiedContextName(eventsBasedObject: EventsBasedObject, eventsFunction: EventsFunction, codeNamespacePrefix: string): string;
   static isBehaviorLifecycleEventsFunction(functionName: string): boolean;
   static isObjectLifecycleEventsFunction(functionName: string): boolean;
   static isExtensionLifecycleEventsFunction(functionName: string): boolean;

@@ -302,11 +302,7 @@ export default class ExportLauncher extends Component<Props, State> {
           }
         : undefined;
 
-      // Regenerate extensions without preview instrumentation (generateForPreview=false).
-      await eventsFunctionsExtensionsState.reloadProjectEventsFunctionsExtensions(
-        project,
-        false
-      );
+      await eventsFunctionsExtensionsState.ensureLoadFinished();
 
       const exportOutput = await exportPipeline.launchExport(
         exportPipelineContext,

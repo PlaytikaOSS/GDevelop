@@ -31,7 +31,6 @@ module.exports = {
       )
       .setDimension('2D')
       .setCategory('Visual effect')
-      .setExtensionHelpPath('/objects/light')
       .setTags('light');
 
     const lightObstacleBehavior = new gd.BehaviorJsImplementation();

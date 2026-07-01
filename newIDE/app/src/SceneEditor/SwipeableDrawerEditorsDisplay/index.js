@@ -462,7 +462,6 @@ const SwipeableDrawerEditorsDisplay: React.ComponentType<{
                         onUpdateBehaviorsSharedData={updateBehaviorsSharedData}
                         objectsContainer={objectsContainer}
                         globalObjectsContainer={globalObjectsContainer}
-                        initialInstances={initialInstances}
                         layersContainer={layersContainer}
                         projectScopedContainersAccessor={
                           projectScopedContainersAccessor
@@ -509,10 +508,6 @@ const SwipeableDrawerEditorsDisplay: React.ComponentType<{
                         onEventsBasedObjectChildrenEdited={
                           props.onEventsBasedObjectChildrenEdited
                         }
-                        onBackgroundColorChanged={
-                          props.onBackgroundColorChanged
-                        }
-                        openSceneVariables={props.openSceneVariables}
                       />
                     )}
                   </I18n>

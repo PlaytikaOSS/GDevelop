@@ -49,19 +49,7 @@ class GD_CORE_API PropertyFunctionGenerator {
    * \brief Generate an event with a "return" action.
    */
   static void GenerateConditionSkeleton(gd::Project &project,
-                                        gd::EventsFunction &eventsFunction);
-
-  /**
-   * \brief Generate an event with a "return" action.
-   */
-  static void GenerateExpressionSkeleton(gd::Project &project,
-                                         gd::EventsFunction &eventsFunction);
-
-  /**
-   * \brief Replace all "return" actions according to function returned type.
-   */
-  static void UpdateReturnActionType(
-    gd::Project &project, gd::EventsFunction &eventsFunction);
+                                        gd::EventsFunction &eventFunction);
 
   ~PropertyFunctionGenerator(){};
 
