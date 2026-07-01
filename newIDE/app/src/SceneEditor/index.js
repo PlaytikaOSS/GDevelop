@@ -103,6 +103,8 @@ import {
   getImageResourceNamesForEditedObject,
   shouldResetObjectRendererForCustomObjectChildrenEdit,
 } from './CustomObjectResourceReload';
+import { type LastSelectionType } from './EditorsDisplay.flow';
+import { type ObjectGroupEditorTab } from '../ObjectGroupEditor/EditedObjectGroupEditorDialog';
 
 const gd: libGDevelop = global.gd;
 
@@ -283,6 +285,7 @@ type State = {|
 
   editedGroup: gdObjectGroup | null,
   isCreatingNewGroup: boolean,
+  editedGroupInitialTab: ObjectGroupEditorTab | null,
 
   instancesEditorSettings: InstancesEditorSettings,
   history: HistoryState,
@@ -294,10 +297,11 @@ type State = {|
   selectedObjectFolderOrObjectsWithContext: Array<ObjectFolderOrObjectWithContext>,
   chosenLayer: string,
   selectedLayer: gdLayer | null,
+  selectedObjectGroup: gdObjectGroup | null,
 
   tileMapTileSelection: ?TileMapTileSelection,
 
-  lastSelectionType: 'instance' | 'object' | 'layer',
+  lastSelectionType: LastSelectionType,
 |};
 
 type CopyCutPasteOptions = {|
@@ -339,6 +343,7 @@ export default class SceneEditor extends React.Component<Props, State> {
       newObjectInstanceSceneCoordinates: null,
       editedGroup: null,
       isCreatingNewGroup: false,
+      editedGroupInitialTab: null,
       extractAsExternalLayoutDialogOpen: false,
       extractAsCustomObjectDialogOpen: false,
 
@@ -361,6 +366,7 @@ export default class SceneEditor extends React.Component<Props, State> {
       chosenLayer:
         initialInstancesEditorSettings.selectedLayer || BASE_LAYER_NAME,
       selectedLayer: null,
+      selectedObjectGroup: null,
       invisibleLayerOnWhichInstancesHaveJustBeenAdded: null,
 
       lastSelectionType: 'instance',
@@ -798,7 +804,7 @@ export default class SceneEditor extends React.Component<Props, State> {
           redo={this.redo}
           onOpenSettings={this.openSceneProperties}
           settingsIcon={editSceneIconReactNode}
-          onOpenSceneVariables={this.editLayoutVariables}
+          onOpenSceneVariables={this.openSceneVariables}
         />
       );
     } else {
@@ -828,7 +834,7 @@ export default class SceneEditor extends React.Component<Props, State> {
           redo={this.redo}
           onOpenSettings={this.openSceneProperties}
           settingsIcon={editSceneIconReactNode}
-          onOpenSceneVariables={this.editLayoutVariables}
+          onOpenSceneVariables={this.openSceneVariables}
         />
       );
     }
@@ -956,7 +962,7 @@ export default class SceneEditor extends React.Component<Props, State> {
     this.setState({ variablesEditedInstance: instance });
   };
 
-  editLayoutVariables = (open: boolean = true) => {
+  openSceneVariables = (open: boolean = true) => {
     this.setState({ layoutVariablesDialogOpen: open });
   };
 
@@ -1051,14 +1057,22 @@ export default class SceneEditor extends React.Component<Props, State> {
         objectFolderOrObjectWithContext,
       ],
       selectedLayer: null,
+      selectedObjectGroup: null,
       lastSelectionType: 'object',
     });
     if (this.editorDisplay)
       this.editorDisplay.ensureEditorVisible('properties');
   };
 
-  _editObjectGroup = (group: ?gdObjectGroup) => {
-    this.setState({ editedGroup: group, isCreatingNewGroup: false });
+  _editObjectGroup = (
+    group: gdObjectGroup,
+    initialTab: ?ObjectGroupEditorTab
+  ) => {
+    this.setState({
+      editedGroup: group,
+      editedGroupInitialTab: initialTab,
+      isCreatingNewGroup: false,
+    });
   };
 
   _createObjectGroup = () => {
@@ -1203,6 +1217,7 @@ export default class SceneEditor extends React.Component<Props, State> {
         lastSelectionType: 'object',
         selectedObjectFolderOrObjectsWithContext,
         selectedLayer: null,
+        selectedObjectGroup: null,
       },
       () => {
         // We update the toolbar because we need to update the objects selected
@@ -1340,6 +1355,7 @@ export default class SceneEditor extends React.Component<Props, State> {
           lastSelectionType: 'instance',
           selectedObjectFolderOrObjectsWithContext: [],
           selectedLayer: null,
+          selectedObjectGroup: null,
         },
         this.updateToolbar
       );
@@ -1366,6 +1382,7 @@ export default class SceneEditor extends React.Component<Props, State> {
             },
           ],
           selectedLayer: null,
+          selectedObjectGroup: null,
         },
         this.updateToolbar
       );
@@ -1382,6 +1399,7 @@ export default class SceneEditor extends React.Component<Props, State> {
             },
           ],
           selectedLayer: null,
+          selectedObjectGroup: null,
         },
         this.updateToolbar
       );
@@ -1749,6 +1767,8 @@ export default class SceneEditor extends React.Component<Props, State> {
   };
 
   _sendSetBackgroundColor = () => {
+    this.forceUpdatePropertiesEditor();
+    this.forceUpdateLayersList();
     const { previewDebuggerServer, layout } = this.props;
     if (!layout) {
       return;
@@ -1809,6 +1829,15 @@ export default class SceneEditor extends React.Component<Props, State> {
     this.setState({
       selectedLayer: layer,
       lastSelectionType: 'layer',
+      selectedObjectGroup: null,
+    });
+  };
+
+  _onSelectObjectGroup = (objectGroup: gdObjectGroup | null) => {
+    this.setState({
+      selectedObjectGroup: objectGroup,
+      lastSelectionType: 'objectGroup',
+      selectedLayer: null,
     });
   };
 
@@ -3022,6 +3051,8 @@ export default class SceneEditor extends React.Component<Props, State> {
                     onSelectLayer={this._onSelectLayer}
                     editLayer={this.editLayer}
                     editLayerEffects={this.editLayerEffects}
+                    selectedObjectGroup={this.state.selectedObjectGroup}
+                    onSelectObjectGroup={this._onSelectObjectGroup}
                     editInstanceVariables={this.editInstanceVariables}
                     editObjectByName={this.editObjectByName}
                     editObjectInPropertiesPanel={
@@ -3133,6 +3164,7 @@ export default class SceneEditor extends React.Component<Props, State> {
                     onEventsBasedObjectChildrenEdited={
                       this.props.onEventsBasedObjectChildrenEdited
                     }
+                    openSceneVariables={this.openSceneVariables}
                   />
                   <React.Fragment>
                     {editedObjectWithContext && (
@@ -3286,6 +3318,7 @@ export default class SceneEditor extends React.Component<Props, State> {
                         projectScopedContainersAccessor
                       }
                       group={this.state.editedGroup}
+                      initialTab={this.state.editedGroupInitialTab}
                       objectsContainer={this.props.objectsContainer}
                       globalObjectsContainer={this.props.globalObjectsContainer}
                       initialInstances={this.props.initialInstances}
@@ -3303,7 +3336,6 @@ export default class SceneEditor extends React.Component<Props, State> {
                           global: false,
                         });
                       }}
-                      initialTab={'objects'}
                       onComputeAllVariableNames={() => {
                         const { editedGroup } = this.state;
                         if (!editedGroup) return [];
@@ -3419,7 +3451,7 @@ export default class SceneEditor extends React.Component<Props, State> {
                       layout={layout}
                       onClose={() => this.openSceneProperties(false)}
                       onApply={() => this.openSceneProperties(false)}
-                      onEditVariables={() => this.editLayoutVariables(true)}
+                      onEditVariables={() => this.openSceneVariables(true)}
                       onOpenMoreSettings={this.props.onOpenMoreSettings}
                       resourceManagementProps={
                         this.props.resourceManagementProps
@@ -3476,8 +3508,8 @@ export default class SceneEditor extends React.Component<Props, State> {
                       open
                       project={project}
                       layout={layout}
-                      onApply={() => this.editLayoutVariables(false)}
-                      onCancel={() => this.editLayoutVariables(false)}
+                      onApply={() => this.openSceneVariables(false)}
+                      onCancel={() => this.openSceneVariables(false)}
                       hotReloadPreviewButtonProps={
                         this.props.hotReloadPreviewButtonProps
                       }

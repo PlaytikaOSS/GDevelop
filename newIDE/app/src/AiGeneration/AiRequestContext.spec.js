@@ -15,6 +15,7 @@ import AuthenticatedUserContext, {
 import {
   AiRequestContext,
   AiRequestProvider,
+  mergeIncrementalAiRequest,
   type AiRequestContextState,
 } from './AiRequestContext';
 import { act } from 'react-dom/test-utils';
@@ -24,6 +25,14 @@ jest.mock('../Utils/GDevelopServices/Generation');
 const mockFn = (fn: any): JestMockFn<any, any> => fn;
 
 const POLLING_INTERVAL_IN_MS = 1400;
+// After an idle tick the adaptive polling interval backs off ×1.5 (see
+// useAdaptivePollingInterval), so later ticks fire after a longer delay.
+const POLLING_INTERVAL_AFTER_BACKOFF_IN_MS = Math.round(
+  POLLING_INTERVAL_IN_MS * 1.5
+); // 2100
+const POLLING_INTERVAL_AFTER_2X_BACKOFF_IN_MS = Math.round(
+  POLLING_INTERVAL_AFTER_BACKOFF_IN_MS * 1.5
+); // 3150
 
 const makeAiRequest = (
   id: string,
@@ -154,18 +163,23 @@ describe('AiRequestProvider sub-agent polling', () => {
     expect(mockFn(getAiRequest)).toHaveBeenCalledTimes(1);
     expect(mockFn(getAiRequestStatuses)).toHaveBeenCalledTimes(0);
 
-    // Subsequent ticks within the 5s full-fetch window: each must do a
-    // (batched) status-only fetch only. Because the status matches the cached
-    // status, no additional full fetch should happen.
-    for (let i = 0; i < 3; i++) {
+    // Subsequent ticks within the full-fetch window do a (batched) status-only
+    // fetch only. Because the status matches the cached status, no additional
+    // full fetch should happen. The interval backs off after each idle tick, so
+    // advance by the backed-off amount to fire each tick (still within the 7s
+    // window: 1400 + 2100 + 3150 = 6650ms).
+    for (const intervalMs of [
+      POLLING_INTERVAL_AFTER_BACKOFF_IN_MS,
+      POLLING_INTERVAL_AFTER_2X_BACKOFF_IN_MS,
+    ]) {
       // eslint-disable-next-line no-await-in-loop
       await act(async () => {
-        jest.advanceTimersByTime(POLLING_INTERVAL_IN_MS);
+        jest.advanceTimersByTime(intervalMs);
         await flushPromises();
       });
     }
 
-    expect(mockFn(getAiRequestStatuses)).toHaveBeenCalledTimes(3);
+    expect(mockFn(getAiRequestStatuses)).toHaveBeenCalledTimes(2);
     // Critical assertion: still only the initial full fetch — the bug
     // would have caused one full fetch per tick after the sub-agent
     // reached `ready`.
@@ -203,14 +217,14 @@ describe('AiRequestProvider sub-agent polling', () => {
 
     // Now backend switches the sub-agent to `ready`. The batched status fetch
     // reports the new status, so the polling loop should immediately do another
-    // full fetch even though the 5s window has not elapsed.
+    // full fetch even though the full-fetch window has not elapsed.
     mockFn(getAiRequest).mockResolvedValue(subAgentReady);
     mockFn(getAiRequestStatuses).mockResolvedValue([
       { id: 'sub-1', status: 'ready', userId: 'user-1' },
     ]);
 
     await act(async () => {
-      jest.advanceTimersByTime(POLLING_INTERVAL_IN_MS);
+      jest.advanceTimersByTime(POLLING_INTERVAL_AFTER_BACKOFF_IN_MS);
       await flushPromises();
     });
 
@@ -258,7 +272,7 @@ describe('AiRequestProvider sub-agent polling', () => {
 
     // Second tick: everyone is status-only → one batched request for all ids.
     await act(async () => {
-      jest.advanceTimersByTime(POLLING_INTERVAL_IN_MS);
+      jest.advanceTimersByTime(POLLING_INTERVAL_AFTER_BACKOFF_IN_MS);
       await flushPromises();
     });
 
@@ -308,7 +322,7 @@ describe('AiRequestProvider sub-agent polling', () => {
     ]);
 
     await act(async () => {
-      jest.advanceTimersByTime(POLLING_INTERVAL_IN_MS);
+      jest.advanceTimersByTime(POLLING_INTERVAL_AFTER_BACKOFF_IN_MS);
       await flushPromises();
     });
 
@@ -351,7 +365,7 @@ describe('AiRequestProvider sub-agent polling', () => {
     ]);
 
     await act(async () => {
-      jest.advanceTimersByTime(POLLING_INTERVAL_IN_MS);
+      jest.advanceTimersByTime(POLLING_INTERVAL_AFTER_BACKOFF_IN_MS);
       await flushPromises();
     });
 
@@ -490,5 +504,54 @@ describe('AiRequestProvider sub-agent cleanup on navigation', () => {
 
     // $FlowFixMe[incompatible-use]
     expect(Object.keys(contextRef.current.activeSubAgents)).toEqual(['sub-2']);
+  });
+});
+
+describe('mergeIncrementalAiRequest', () => {
+  const message = (messageId: string) => ({
+    messageId,
+    type: 'message',
+    status: 'completed',
+    role: 'user',
+    content: [{ type: 'user_request', status: 'completed', text: messageId }],
+  });
+  const requestWithOutput = (output: Array<any>): AiRequest => ({
+    ...makeAiRequest('req-1', 'working'),
+    output,
+  });
+
+  it('returns the fetched request as-is when there is no outputFromMessageId', () => {
+    const fetched = requestWithOutput([message('a'), message('b')]);
+    expect(
+      mergeIncrementalAiRequest(
+        requestWithOutput([message('a')]),
+        fetched,
+        undefined
+      )
+    ).toBe(fetched);
+  });
+
+  it('splices the incremental slice onto the cached output', () => {
+    const previous = requestWithOutput([message('a'), message('b')]);
+    // The backend re-sends the tail ('b') plus the new message ('c').
+    const fetched = requestWithOutput([message('b'), message('c')]);
+    const merged = mergeIncrementalAiRequest(previous, fetched, 'b');
+    const mergedOutput = merged.output || [];
+    const fetchedOutput = fetched.output || [];
+
+    expect(mergedOutput.map(m => m.messageId)).toEqual(['a', 'b', 'c']);
+    // The tail is taken from the fetched response (so in-place updates like
+    // suggestions are picked up), not from the cache.
+    expect(mergedOutput[1]).toBe(fetchedOutput[0]);
+  });
+
+  it('returns the fetched request as-is when it is a full output, not a slice', () => {
+    const previous = requestWithOutput([message('a'), message('b')]);
+    const fetched = requestWithOutput([
+      message('a'),
+      message('b'),
+      message('c'),
+    ]);
+    expect(mergeIncrementalAiRequest(previous, fetched, 'b')).toBe(fetched);
   });
 });

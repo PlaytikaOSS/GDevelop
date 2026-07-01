@@ -117,8 +117,7 @@ const getErrorMessage = (i18n: I18nType, exportStep: BuildStep) => {
  * of an export.
  */
 export default class ExportLauncher extends Component<Props, State> {
-  // $FlowFixMe[missing-local-annot]
-  state = {
+  state: State = {
     exportStep: '',
     build: null,
     compressionOutput: null,
@@ -132,8 +131,7 @@ export default class ExportLauncher extends Component<Props, State> {
     ): any),
   };
   _candidateBumpedVersionNumber = '';
-  // $FlowFixMe[missing-local-annot]
-  buildsWatcher = (new BuildsWatcher(): BuildsWatcher);
+  buildsWatcher: BuildsWatcher = new BuildsWatcher();
   launchWholeExport: ({|
     payWithCredits?: boolean,
   |}) => Promise<void>;
@@ -302,7 +300,11 @@ export default class ExportLauncher extends Component<Props, State> {
           }
         : undefined;
 
-      await eventsFunctionsExtensionsState.ensureLoadFinished();
+      // Regenerate extensions without preview instrumentation (generateForPreview=false).
+      await eventsFunctionsExtensionsState.reloadProjectEventsFunctionsExtensions(
+        project,
+        false
+      );
 
       const exportOutput = await exportPipeline.launchExport(
         exportPipelineContext,
