@@ -1,5 +1,5 @@
-# Build the GDevelop desktop editor and publish a GitHub prerelease on every
-# push to release/beta-editor.
+# Build the GDevelop desktop editor and publish a GitHub prerelease whenever a
+# pull request is merged into release/beta-editor.
 #
 # Pipeline:
 #   1) build-gdevelop-js (Linux): compiles GDevelop.js (libGD.js / libGD.wasm)
@@ -19,11 +19,11 @@
 #
 # Heavy steps (emsdk, libGD build, npm installs, electron-builder, release
 # creation, installer upload) are gated by the DRY_RUN env below. Default is
-# "false" on this branch so every push produces installers and a prerelease.
+# "false" on this branch so every merge produces installers and a prerelease.
 # Set DRY_RUN to "true" temporarily to exercise the workflow without building.
 #
-# Concurrency: rapid consecutive pushes cancel in-flight runs for the same
-# branch - the newest push is what we want to ship.
+# Concurrency: rapid consecutive merges cancel in-flight runs for the same
+# target branch - the newest merge is what we want to ship.
 #
 # Required permissions: contents: write (create tags, releases, upload
 # assets). Provided by the default GITHUB_TOKEN on the fork; no PAT needed.
@@ -31,17 +31,20 @@
 # Not intended to be merged to master - lives on the `release/beta-editor`
 # branch only so upstream sync is not disturbed. Since workflow_dispatch is
 # not available for workflows that do not exist on the default branch, the
-# only trigger is push to release/beta-editor.
+# only trigger is a merged pull request targeting release/beta-editor (a
+# closed-but-not-merged PR, e.g. rejected/closed without merging, is ignored
+# via the per-job `if:` check below).
 
 name: Build Editor (Windows & macOS)
 
 on:
-  push:
+  pull_request:
+    types: [closed]
     branches:
       - release/beta-editor
 
 concurrency:
-  group: build-editor-${{ github.ref }}
+  group: build-editor-${{ github.event.pull_request.base.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -59,12 +62,17 @@ env:
 jobs:
   build-gdevelop-js:
     name: Build GDevelop.js (Linux)
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-24.04
     outputs:
       build_version: ${{ steps.version.outputs.value }}
     steps:
+      # Check out the actual merge commit landed on the base branch (not the
+      # ephemeral refs/pull/:number/merge test-merge ref) so the build reflects
+      # exactly what is now on release/beta-editor.
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
           fetch-depth: 1
 
       # Version format: <upstream>-beta.<github.run_number>. Upstream base is read
@@ -148,6 +156,7 @@ jobs:
   # does nothing.
   prepare-release:
     name: Prepare GitHub prerelease
+    if: github.event.pull_request.merged == true
     needs: build-gdevelop-js
     runs-on: ubuntu-latest
     steps:
@@ -156,6 +165,7 @@ jobs:
       - uses: actions/checkout@v4
         if: ${{ env.DRY_RUN != 'true' }}
         with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
           fetch-depth: 0
 
       - name: Create empty prerelease
@@ -163,6 +173,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: v${{ needs.build-gdevelop-js.outputs.build_version }}
+          TARGET_SHA: ${{ github.event.pull_request.merge_commit_sha }}
         shell: bash
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
@@ -172,7 +183,7 @@ jobs:
               --prerelease \
               --title "$TAG" \
               --generate-notes \
-              --target "${{ github.sha }}"
+              --target "$TARGET_SHA"
           fi
 
       - name: Dry-run summary
@@ -184,6 +195,7 @@ jobs:
 
   build-editor-windows:
     name: Build Editor (Windows)
+    if: github.event.pull_request.merged == true
     needs: [build-gdevelop-js, prepare-release]
     runs-on: windows-latest
     env:
@@ -196,6 +208,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
           fetch-depth: 1
 
       - uses: actions/setup-node@v4
@@ -286,6 +299,7 @@ jobs:
 
   build-editor-macos:
     name: Build Editor (macOS)
+    if: github.event.pull_request.merged == true
     needs: [build-gdevelop-js, prepare-release]
     runs-on: macos-latest
     env:
@@ -305,6 +319,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
           fetch-depth: 1
 
       - uses: actions/setup-node@v4
