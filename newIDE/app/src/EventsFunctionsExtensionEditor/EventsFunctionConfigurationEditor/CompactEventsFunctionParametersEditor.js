@@ -15,9 +15,9 @@ import { type CompactTextFieldInterface } from '../../UI/CompactTextField';
 import { ParametersIndexOffsets } from '../../EventsFunctionsExtensionsLoader';
 import DismissableAlertMessage from '../../UI/DismissableAlertMessage';
 import {
-  ResponsiveLineStackLayout,
   ColumnStackLayout,
   LineStackLayout,
+  ResponsiveLineStackLayout,
 } from '../../UI/Layout';
 import { getLastObjectParameterObjectType } from '../../EventsSheet/ParameterFields/ParameterMetadataTools';
 import newNameGenerator from '../../Utils/NewNameGenerator';
