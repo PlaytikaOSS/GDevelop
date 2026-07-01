@@ -216,9 +216,9 @@ TEST_CASE("ObjectSerialization", "[common]") {
     CheckCustomObjectConfiguration(readProject);
   }
 
-  SECTION(
-      "Save and load a project with an objects folder structure containing "
-      "missing object references") {
+  // clang-format off
+  SECTION("Save and load a project with an objects folder structure containing missing object references") {
+  // clang-format on
     gd::Platform platform;
     gd::Project writtenProject;
     SetupProjectWithSprite(writtenProject, platform);

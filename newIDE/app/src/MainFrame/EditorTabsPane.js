@@ -29,7 +29,8 @@ import {
   type InstancesOutsideEditorChanges,
   type ObjectsOutsideEditorChanges,
   type ObjectGroupsOutsideEditorChanges,
-} from './EditorContainers/BaseEditor';
+  type ProjectItemRenamedOutsideEditorChanges,
+} from '../EditorFunctions/OutsideEditorChanges';
 import { type NavigateToEventFromGlobalSearchParams } from '../Utils/Search';
 import { type ResourceManagementProps } from '../ResourcesList/ResourceSource';
 import { type HotReloadPreviewButtonProps } from '../HotReload/HotReloadPreviewButton';
@@ -284,6 +285,9 @@ export type EditorTabsPaneCommonProps = {|
   onObjectGroupsModifiedOutsideEditor: (
     changes: ObjectGroupsOutsideEditorChanges
   ) => void,
+  onProjectItemRenamedOutsideEditor: (
+    changes: ProjectItemRenamedOutsideEditorChanges
+  ) => void,
   onWillInstallExtension: (extensionNames: Array<string>) => void,
   onExtensionInstalled: (extensionNames: Array<string>) => void,
   onLoadEventsFunctionsExtensions: ({|
@@ -400,6 +404,7 @@ const EditorTabsPane: React.ComponentType<{
     onInstancesModifiedOutsideEditor,
     onObjectsModifiedOutsideEditor,
     onObjectGroupsModifiedOutsideEditor,
+    onProjectItemRenamedOutsideEditor,
     onWillInstallExtension,
     onExtensionInstalled,
     onEffectAdded,
@@ -423,7 +428,6 @@ const EditorTabsPane: React.ComponentType<{
     projectPath,
     triggerNpmScript,
     onRequestPaneClose,
-    drawerState,
     rightPaneDrawerOpen,
   } = props;
 
@@ -560,32 +564,6 @@ const EditorTabsPane: React.ComponentType<{
 
   const paneEditorTabs = getEditorsForPane(editorTabs, paneIdentifier);
   const currentTab = getCurrentTabForPane(editorTabs, paneIdentifier);
-
-  // On mobile, the Ask AI drawer is never unmounted when closed — the component
-  // stays mounted and is hidden via CSS transform. The unmount cleanup in
-  // AskAiEditorContainer therefore never fires. Detect the open→closed transition
-  // here and call suspendOnDrawerClose() explicitly so the AI request is stopped.
-  const prevDrawerStateRef = React.useRef(drawerState);
-  React.useEffect(
-    () => {
-      if (
-        isDrawer &&
-        drawerState === 'closed' &&
-        prevDrawerStateRef.current === 'open'
-      ) {
-        const askAiTab = paneEditorTabs.find(tab => tab.key === 'ask-ai');
-        if (askAiTab && askAiTab.editorRef) {
-          // $FlowFixMe[incompatible-use]
-          const ref = (askAiTab.editorRef: any);
-          if (ref.suspendOnDrawerClose) {
-            ref.suspendOnDrawerClose();
-          }
-        }
-      }
-      prevDrawerStateRef.current = drawerState;
-    },
-    [drawerState, isDrawer, paneEditorTabs]
-  );
 
   // Use a layout effect to read the pane width and height, which is then used
   // to communicate to children editors the dimensions of their "window" (the pane).
@@ -892,6 +870,7 @@ const EditorTabsPane: React.ComponentType<{
                     onInstancesModifiedOutsideEditor: onInstancesModifiedOutsideEditor,
                     onObjectsModifiedOutsideEditor: onObjectsModifiedOutsideEditor,
                     onObjectGroupsModifiedOutsideEditor: onObjectGroupsModifiedOutsideEditor,
+                    onProjectItemRenamedOutsideEditor: onProjectItemRenamedOutsideEditor,
                     onWillInstallExtension: onWillInstallExtension,
                     onExtensionInstalled: onExtensionInstalled,
                     onEffectAdded: onEffectAdded,

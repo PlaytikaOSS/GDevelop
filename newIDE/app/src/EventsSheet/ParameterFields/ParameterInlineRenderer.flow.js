@@ -2,7 +2,6 @@
 import * as React from 'react';
 import { type EventsScope } from '../../InstructionOrExpression/EventsScope';
 import { ProjectScopedContainersAccessor } from '../../InstructionOrExpression/EventsScope';
-import { type RuntimeVariablesMap } from '../RuntimeVariablesContext';
 
 export type InvalidParameterValueProps = {|
   children: React.Node,
@@ -31,11 +30,6 @@ export type ParameterInlineRendererProps = {|
   useAssignmentOperators: boolean,
   highlightedSearchText?: ?string,
   highlightedSearchMatchCase?: boolean,
-  runtimeVariables?: ?RuntimeVariablesMap,
-  // Name of the most recent `object`-typed parameter preceding this one
-  // in the same instruction (if any). Used by `objectvar` tooltips to
-  // resolve the `<object>.<variable>` runtime value at pause time.
-  lastObjectName?: ?string,
 |};
 
 /**
