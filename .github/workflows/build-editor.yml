@@ -31,11 +31,15 @@
 # assets). Provided by the default GITHUB_TOKEN on the fork; no PAT needed.
 #
 # Not intended to be merged to master - lives on the `release/beta-editor`
-# branch only so upstream sync is not disturbed. Since workflow_dispatch is
-# not available for workflows that do not exist on the default branch, the
-# only trigger is a merged pull request targeting release/beta-editor (a
-# closed-but-not-merged PR, e.g. rejected/closed without merging, is ignored
-# via the per-job `if:` check below).
+# branch only so upstream sync is not disturbed. Triggers:
+#   - a merged pull request targeting release/beta-editor (a closed-but-not-
+#     merged PR, e.g. rejected/closed without merging, is ignored via the
+#     per-job `if:` check below);
+#   - a direct push to release/beta-editor whose commit message contains the
+#     marker "[force-build]" (see the per-job `if:` below) - workflow_dispatch's
+#     "Run workflow" button does not show up for workflows that only exist on
+#     a non-default branch, so this is the escape hatch to re-run without a
+#     throwaway PR (e.g. `git commit --allow-empty -m "[force-build] retry Linux build"`).
 
 name: Build Editor (Windows, macOS & Linux)
 
@@ -44,9 +48,12 @@ on:
     types: [closed]
     branches:
       - release/beta-editor
+  push:
+    branches:
+      - release/beta-editor
 
 concurrency:
-  group: build-editor-${{ github.event.pull_request.base.ref }}
+  group: build-editor-${{ github.event.pull_request.base.ref || github.ref_name }}
   cancel-in-progress: true
 
 permissions:
@@ -64,7 +71,9 @@ env:
 jobs:
   build-gdevelop-js:
     name: Build GDevelop.js (Linux)
-    if: github.event.pull_request.merged == true
+    if: >-
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[force-build]'))
     runs-on: ubuntu-24.04
     outputs:
       build_version: ${{ steps.version.outputs.value }}
@@ -74,7 +83,7 @@ jobs:
       # exactly what is now on release/beta-editor.
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
           fetch-depth: 1
 
       # Version format: <upstream>-beta.<github.run_number>. Upstream base is read
@@ -158,7 +167,9 @@ jobs:
   # does nothing.
   prepare-release:
     name: Prepare GitHub prerelease
-    if: github.event.pull_request.merged == true
+    if: >-
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[force-build]'))
     needs: build-gdevelop-js
     runs-on: ubuntu-latest
     steps:
@@ -167,7 +178,7 @@ jobs:
       - uses: actions/checkout@v4
         if: ${{ env.DRY_RUN != 'true' }}
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
           fetch-depth: 0
 
       - name: Create empty prerelease
@@ -175,7 +186,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: v${{ needs.build-gdevelop-js.outputs.build_version }}
-          TARGET_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          TARGET_SHA: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
         shell: bash
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
@@ -197,7 +208,9 @@ jobs:
 
   build-editor-windows:
     name: Build Editor (Windows)
-    if: github.event.pull_request.merged == true
+    if: >-
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[force-build]'))
     needs: [build-gdevelop-js, prepare-release]
     runs-on: windows-latest
     env:
@@ -210,7 +223,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
           fetch-depth: 1
 
       - uses: actions/setup-node@v4
@@ -301,7 +314,9 @@ jobs:
 
   build-editor-macos:
     name: Build Editor (macOS)
-    if: github.event.pull_request.merged == true
+    if: >-
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[force-build]'))
     needs: [build-gdevelop-js, prepare-release]
     runs-on: macos-latest
     env:
@@ -321,7 +336,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
           fetch-depth: 1
 
       - uses: actions/setup-node@v4
@@ -398,7 +413,9 @@ jobs:
 
   build-editor-linux:
     name: Build Editor (Linux portable)
-    if: github.event.pull_request.merged == true
+    if: >-
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[force-build]'))
     needs: [build-gdevelop-js, prepare-release]
     runs-on: ubuntu-24.04
     env:
@@ -412,7 +429,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
           fetch-depth: 1
 
       - uses: actions/setup-node@v4
