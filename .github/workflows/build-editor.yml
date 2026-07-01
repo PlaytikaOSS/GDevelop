@@ -8,13 +8,15 @@
 #   2) prepare-release (Linux): creates an empty GitHub prerelease tagged
 #      v<build_version> with auto-generated release notes (changelog vs the
 #      previous release on this repo). Idempotent.
-#   3) build-editor-windows + build-editor-macos (parallel): each job
-#      downloads the libGD-js artifact, places it under Binaries/embuild/
-#      GDevelop.js so newIDE/app/scripts/import-libGD.js uses the local-build
-#      path, stamps the build version into newIDE/electron-app/app/
-#      package.json, installs a minimal shelljs in GDevelop.js/ for
-#      copy-to-newIDE.js, then runs electron-builder (Windows: default
-#      targets; macOS: --mac). Installers are uploaded directly to the
+#   3) build-editor-windows + build-editor-macos + build-editor-linux
+#      (parallel): each job downloads the libGD-js artifact, places it under
+#      Binaries/embuild/GDevelop.js so newIDE/app/scripts/import-libGD.js
+#      uses the local-build path, stamps the build version into
+#      newIDE/electron-app/app/package.json, installs a minimal shelljs in
+#      GDevelop.js/ for copy-to-newIDE.js, then runs electron-builder
+#      (Windows: default targets; macOS: --mac; Linux: --linux zip --x64,
+#      i.e. only the portable zip, not the AppImage/deb installers - see
+#      4ian/GDevelop#8587). Installers/archives are uploaded directly to the
 #      prerelease (no standalone workflow artifacts are kept).
 #
 # Heavy steps (emsdk, libGD build, npm installs, electron-builder, release
@@ -35,7 +37,7 @@
 # closed-but-not-merged PR, e.g. rejected/closed without merging, is ignored
 # via the per-job `if:` check below).
 
-name: Build Editor (Windows & macOS)
+name: Build Editor (Windows, macOS & Linux)
 
 on:
   pull_request:
@@ -392,4 +394,101 @@ jobs:
         shell: bash
         run: |
           echo "DRY RUN (macOS): skipped installs, stamp, electron-builder and release upload."
+          echo "  build_version = ${{ needs.build-gdevelop-js.outputs.build_version }}"
+
+  build-editor-linux:
+    name: Build Editor (Linux portable)
+    if: github.event.pull_request.merged == true
+    needs: [build-gdevelop-js, prepare-release]
+    runs-on: ubuntu-24.04
+    env:
+      # Force import-libGD.js to fail instead of silently falling back to
+      # master/latest on S3 if our locally-placed libGD.js is missing.
+      REQUIRES_EXACT_LIBGD_JS_VERSION: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        if: ${{ env.DRY_RUN != 'true' }}
+        with:
+          node-version: 16
+          cache: npm
+          cache-dependency-path: |
+            newIDE/app/package-lock.json
+            newIDE/electron-app/package-lock.json
+            newIDE/electron-app/app/package-lock.json
+
+      # electron-builder's Linux packaging (icon conversion, AppImage/deb
+      # tooling) needs these - same packages as upstream's .circleci/config.yml.
+      - name: Install system deps for electron-builder
+        if: ${{ env.DRY_RUN != 'true' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y icnsutils graphicsmagick rsync
+
+      # libGD.js / libGD.wasm are platform-independent (WebAssembly), so the
+      # Linux-built artifact from build-gdevelop-js is reused as-is here too.
+      - name: Download libGD.js artifact
+        if: ${{ env.DRY_RUN != 'true' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: libGD-js
+          path: Binaries/embuild/GDevelop.js
+
+      # See the Windows job for the rationale.
+      - name: Install shelljs for GDevelop.js copy script
+        if: ${{ env.DRY_RUN != 'true' }}
+        run: npm install shelljs --no-save --no-package-lock
+        working-directory: GDevelop.js
+
+      - name: Install newIDE/app dependencies
+        if: ${{ env.DRY_RUN != 'true' }}
+        run: npm install
+        working-directory: newIDE/app
+
+      - name: Install newIDE/electron-app dependencies
+        if: ${{ env.DRY_RUN != 'true' }}
+        run: npm install
+        working-directory: newIDE/electron-app
+
+      # See the Windows job for the rationale.
+      - name: Stamp build version
+        if: ${{ env.DRY_RUN != 'true' }}
+        shell: bash
+        env:
+          BUILD_VERSION: ${{ needs.build-gdevelop-js.outputs.build_version }}
+        run: |
+          node -e "const f='newIDE/electron-app/app/package.json';const p=require('./'+f);p.version=process.env.BUILD_VERSION;require('fs').writeFileSync(f, JSON.stringify(p,null,2)+'\n')"
+          echo "Stamped version: $BUILD_VERSION"
+
+      # `--linux zip --x64` builds only the self-contained portable zip (no
+      # installation, no code-signing), skipping the AppImage/deb installers
+      # and the arm64 arch configured in electron-builder-config.js - mirrors
+      # the "portable build" introduced upstream in 4ian/GDevelop#8587.
+      # `--publish=never` keeps electron-builder from trying to upload a release.
+      - name: Build editor portable zip (electron-builder)
+        if: ${{ env.DRY_RUN != 'true' }}
+        run: npm run build -- --linux zip --x64 --publish=never
+        working-directory: newIDE/electron-app
+
+      # Attach the portable zip (e.g. "gdevelop-5.6.266-beta.42.zip") to the
+      # release. --clobber makes re-runs of this job safe.
+      - name: Attach Linux portable zip to release
+        if: ${{ env.DRY_RUN != 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: v${{ needs.build-gdevelop-js.outputs.build_version }}
+        shell: bash
+        run: |
+          gh release upload "$TAG" newIDE/electron-app/dist/gdevelop-*.zip --clobber
+
+      - name: Dry-run summary
+        if: ${{ env.DRY_RUN == 'true' }}
+        shell: bash
+        run: |
+          echo "DRY RUN (Linux): skipped installs, stamp, electron-builder and release upload."
           echo "  build_version = ${{ needs.build-gdevelop-js.outputs.build_version }}"
