@@ -402,6 +402,9 @@ jobs:
     needs: [build-gdevelop-js, prepare-release]
     runs-on: ubuntu-24.04
     env:
+      # React production build runs out of heap without a larger Node heap -
+      # same value as upstream's .circleci/config.yml Linux build job.
+      NODE_OPTIONS: --max-old-space-size=7168
       # Force import-libGD.js to fail instead of silently falling back to
       # master/latest on S3 if our locally-placed libGD.js is missing.
       REQUIRES_EXACT_LIBGD_JS_VERSION: "true"
