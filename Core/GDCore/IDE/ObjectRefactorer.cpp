@@ -12,6 +12,7 @@
 #include "GDCore/Project/ObjectGroup.h"
 #include "GDCore/Project/ObjectsContainer.h"
 #include "GDCore/Project/ObjectsContainersList.h"
+#include "GDCore/Project/ObjectTools.h"
 #include "GDCore/Project/Variable.h"
 #include "GDCore/Project/VariablesContainer.h"
 #include "GDCore/String.h"
@@ -144,7 +145,16 @@ void ObjectRefactorer::FillMissingGroupVariablesToObject(
     auto &groupVariable = groupVariablesContainer.Get(variableIndex);
     const auto &variableName = groupVariablesContainer.GetNameAt(variableIndex);
 
+    if (groupVariable.GetType() == gd::Variable::Type::MixedTypes) {
+      // Objects of the group have entirely different types for this variable:
+      // there is no meaningful type or value to give to the object.
+      continue;
+    }
     if (!variablesContainer.Has(variableName)) {
+      // Note: if the group objects have different values for this variable
+      // ("mixed values"), the value of the first object of the group is used
+      // (`Insert` takes care of clearing the editor-only "mixed values"
+      // marker so it's not persisted in the project).
       variablesContainer.Insert(variableName, groupVariable,
                                 variablesContainer.Count());
     }
@@ -152,6 +162,7 @@ void ObjectRefactorer::FillMissingGroupVariablesToObject(
 }
 
 void ObjectRefactorer::FillMissingGroupBehaviorToObject(
+    const gd::Platform& platform,
     gd::ObjectsContainer &globalObjectsContainer,
     gd::ObjectsContainer &objectsContainer, gd::Object &object,
     const gd::ObjectGroup &objectGroup, const gd::String &behaviorName) {
@@ -171,8 +182,12 @@ void ObjectRefactorer::FillMissingGroupBehaviorToObject(
   if (!firstObject.HasBehaviorNamed(behaviorName)) {
     return;
   }
-  object.GetBehaviors().AddBehavior(firstObject.GetBehavior(behaviorName),
-                                    behaviorName);
+  auto &behavior = firstObject.GetBehavior(behaviorName);
+  if (!gd::ObjectTools::IsBehaviorCompatibleWithObject(
+          platform, object.GetType(), behavior.GetTypeName())) {
+    return;
+  }
+  object.GetBehaviors().AddBehavior(behavior, behaviorName);
 }
 
 // TODO Handle position changes for group variables.
