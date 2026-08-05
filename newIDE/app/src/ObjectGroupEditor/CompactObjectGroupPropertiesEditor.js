@@ -144,11 +144,16 @@ export const CompactObjectGroupPropertiesEditor = ({
 
   const scrollViewRef = React.useRef<?ScrollViewInterface>(null);
   const scrollKey = '' + objectGroup.ptr;
+
+  // Object groups have no persistent UUID, so the name is used
+  // (like for scenes).
+  const persistedScrollId = objectGroup.getName();
+
   const onScroll = usePersistedScrollPosition({
     project,
     scrollViewRef,
     scrollKey,
-    persistedScrollId: null,
+    persistedScrollId,
     persistedScrollType: 'objectGroup',
   });
 
@@ -216,6 +221,7 @@ export const CompactObjectGroupPropertiesEditor = ({
       );
       for (const behaviorName of allVisibleBehaviorNames) {
         gd.ObjectRefactorer.fillMissingGroupBehaviorToObject(
+          project.getCurrentPlatform(),
           globalObjectsContainer || objectsContainer,
           objectsContainer,
           object,
@@ -232,6 +238,7 @@ export const CompactObjectGroupPropertiesEditor = ({
       groupVariablesContainer,
       objectGroup,
       objectsContainer,
+      project,
     ]
   );
 

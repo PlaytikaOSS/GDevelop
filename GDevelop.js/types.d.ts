@@ -370,7 +370,9 @@ export class Variable extends EmscriptenObject {
   serializeTo(element: SerializerElement): void;
   unserializeFrom(element: SerializerElement): void;
   resetPersistentUuid(): Variable;
+  ensurePersistentUuid(): Variable;
   clearPersistentUuid(): Variable;
+  getPersistentUuid(): string;
 }
 
 export class VariablesContainer extends EmscriptenObject {
@@ -393,7 +395,9 @@ export class VariablesContainer extends EmscriptenObject {
   serializeTo(element: SerializerElement): void;
   unserializeFrom(element: SerializerElement): void;
   resetPersistentUuid(): VariablesContainer;
+  ensurePersistentUuids(): VariablesContainer;
   clearPersistentUuid(): VariablesContainer;
+  getPersistentUuid(): string;
 }
 
 export class VariablesContainersList extends EmscriptenObject {
@@ -423,7 +427,7 @@ export class ObjectRefactorer extends EmscriptenObject {
   static fillAnyVariableBetweenObjects(globalObjectsContainer: ObjectsContainer, objectsContainer: ObjectsContainer, objectGroup: ObjectGroup): void;
   static applyChangesToVariants(eventsBasedObject: EventsBasedObject, objectName: string, changeset: VariablesChangeset): void;
   static fillMissingGroupVariablesToObject(obj: gdObject, groupVariablesContainer: VariablesContainer): void;
-  static fillMissingGroupBehaviorToObject(globalObjectsContainer: ObjectsContainer, objectsContainer: ObjectsContainer, obj: gdObject, objectGroup: ObjectGroup, behaviorName: string): void;
+  static fillMissingGroupBehaviorToObject(platform: Platform, globalObjectsContainer: ObjectsContainer, objectsContainer: ObjectsContainer, obj: gdObject, objectGroup: ObjectGroup, behaviorName: string): void;
 }
 
 export class EventsBasedObjectVariantHelper extends EmscriptenObject {
@@ -1953,6 +1957,8 @@ export class BaseEvent extends EmscriptenObject {
   unserializeFrom(project: Project, element: SerializerElement): void;
   getAiGeneratedEventId(): string;
   setAiGeneratedEventId(aiGeneratedEventId: string): void;
+  getOrCreatePersistentUuid(): string;
+  getPersistentUuid(): string;
 }
 
 export class StandardEvent extends BaseEvent {
@@ -3266,6 +3272,7 @@ export class PreviewExportOptions extends EmscriptenObject {
   setFullLoadingScreen(enable: boolean): PreviewExportOptions;
   setIsDevelopmentEnvironment(enable: boolean): PreviewExportOptions;
   setIsInGameEdition(enable: boolean): PreviewExportOptions;
+  setCdpDebuggerEnabled(enable: boolean): PreviewExportOptions;
   setInGameEditorSettingsJson(inGameEditorSettingsJson: string): PreviewExportOptions;
   setEditorId(editorId: string): PreviewExportOptions;
   setEditorCameraState3D(cameraMode: string, positionX: number, positionY: number, positionZ: number, rotationAngle: number, elevationAngle: number, distance: number): PreviewExportOptions;
@@ -3332,11 +3339,13 @@ export class MetadataDeclarationHelper extends EmscriptenObject {
   generateFreeFunctionMetadata(project: Project, extension: PlatformExtension, eventsFunctionsExtension: EventsFunctionsExtension, eventsFunction: EventsFunction): AbstractFunctionMetadata;
   static generateBehaviorMetadata(project: Project, extension: PlatformExtension, eventsFunctionsExtension: EventsFunctionsExtension, eventsBasedBehavior: EventsBasedBehavior, behaviorMethodMangledNames: MapStringString): BehaviorMetadata;
   static generateObjectMetadata(project: Project, extension: PlatformExtension, eventsFunctionsExtension: EventsFunctionsExtension, eventsBasedObject: EventsBasedObject, objectMethodMangledNames: MapStringString): ObjectMetadata;
+  static getSceneCodeNamespace(sceneName: string): string;
   static getExtensionCodeNamespacePrefix(eventsFunctionsExtension: EventsFunctionsExtension): string;
   static getFreeFunctionCodeName(eventsFunctionsExtension: EventsFunctionsExtension, eventsFunction: EventsFunction): string;
   static getFreeFunctionCodeNamespace(eventsFunction: EventsFunction, codeNamespacePrefix: string): string;
   static getBehaviorFunctionCodeNamespace(eventsBasedBehavior: EventsBasedBehavior, codeNamespacePrefix: string): string;
   static getObjectFunctionCodeNamespace(eventsBasedObject: EventsBasedObject, codeNamespacePrefix: string): string;
+  static getObjectEventsFunctionFullyQualifiedContextName(eventsBasedObject: EventsBasedObject, eventsFunction: EventsFunction, codeNamespacePrefix: string): string;
   static isBehaviorLifecycleEventsFunction(functionName: string): boolean;
   static isObjectLifecycleEventsFunction(functionName: string): boolean;
   static isExtensionLifecycleEventsFunction(functionName: string): boolean;

@@ -299,7 +299,9 @@ interface Variable {
     void SerializeTo([Ref] SerializerElement element);
     void UnserializeFrom([Const, Ref] SerializerElement element);
     [Ref] Variable ResetPersistentUuid();
+    [Ref] Variable EnsurePersistentUuid();
     [Ref] Variable ClearPersistentUuid();
+    [Const, Ref] DOMString GetPersistentUuid();
 };
 
 enum VariablesContainer_SourceType {
@@ -337,7 +339,9 @@ interface VariablesContainer {
     void SerializeTo([Ref] SerializerElement element);
     void UnserializeFrom([Const, Ref] SerializerElement element);
     [Ref] VariablesContainer ResetPersistentUuid();
+    [Ref] VariablesContainer EnsurePersistentUuids();
     [Ref] VariablesContainer ClearPersistentUuid();
+    [Const, Ref] DOMString GetPersistentUuid();
 };
 
 interface VariablesContainersList {
@@ -382,6 +386,7 @@ interface ObjectRefactorer {
         [Ref] gdObject obj,
         [ Const, Ref ] VariablesContainer groupVariablesContainer);
     void STATIC_FillMissingGroupBehaviorToObject(
+        [Const, Ref] Platform platform,
         [Ref] ObjectsContainer globalObjectsContainer,
         [Ref] ObjectsContainer objectsContainer,
         [Ref] gdObject obj,
@@ -2532,6 +2537,9 @@ interface BaseEvent {
 
     [Const, Ref] DOMString GetAiGeneratedEventId();
     void SetAiGeneratedEventId([Const] DOMString aiGeneratedEventId);
+
+    [Const, Ref] DOMString GetOrCreatePersistentUuid();
+    [Const, Ref] DOMString GetPersistentUuid();
 };
 
 interface StandardEvent {
@@ -4386,6 +4394,7 @@ interface PreviewExportOptions {
     [Ref] PreviewExportOptions SetFullLoadingScreen(boolean enable);
     [Ref] PreviewExportOptions SetIsDevelopmentEnvironment(boolean enable);
     [Ref] PreviewExportOptions SetIsInGameEdition(boolean enable);
+    [Ref] PreviewExportOptions SetCdpDebuggerEnabled(boolean enable);
     [Ref] PreviewExportOptions SetInGameEditorSettingsJson([Const] DOMString inGameEditorSettingsJson);
     [Ref] PreviewExportOptions SetEditorId([Const] DOMString editorId);
     [Ref] PreviewExportOptions SetEditorCameraState3D(
@@ -4496,6 +4505,9 @@ interface MetadataDeclarationHelper {
         [Const, Ref] EventsBasedObject eventsBasedObject,
         [Ref] MapStringString objectMethodMangledNames);
 
+    [Const, Value] DOMString STATIC_GetSceneCodeNamespace(
+        [Const] DOMString sceneName);
+
     [Const, Value] DOMString STATIC_GetExtensionCodeNamespacePrefix(
         [Const, Ref] EventsFunctionsExtension eventsFunctionsExtension);
 
@@ -4513,6 +4525,11 @@ interface MetadataDeclarationHelper {
 
     [Const, Value] DOMString STATIC_GetObjectFunctionCodeNamespace(
         [Const, Ref] EventsBasedObject eventsBasedObject,
+        [Const] DOMString codeNamespacePrefix);
+
+    [Const, Value] DOMString STATIC_GetObjectEventsFunctionFullyQualifiedContextName(
+        [Const, Ref] EventsBasedObject eventsBasedObject,
+        [Const, Ref] EventsFunction eventsFunction,
         [Const] DOMString codeNamespacePrefix);
 
     boolean STATIC_IsBehaviorLifecycleEventsFunction([Const] DOMString functionName);

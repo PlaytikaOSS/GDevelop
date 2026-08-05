@@ -38,6 +38,10 @@ const {
   closePreviewWindow,
   closePreviewWindowsForParent,
   closeAllPreviewWindows,
+  resumePreviewDebugger,
+  stepPreviewDebugger,
+  setBreakpointsPreviewDebugger,
+  schedulePauseAtNextEventInPreviewDebugger,
 } = require('./PreviewWindow');
 const {
   setupLocalGDJSDevelopmentWatcher,
@@ -45,6 +49,7 @@ const {
   onLocalGDJSDevelopmentWatcherRuntimeUpdated,
 } = require('./LocalGDJSDevelopmentWatcher');
 const { setupWatcher, disableWatcher } = require('./LocalFilesystemWatcher');
+const { installCliInPath } = require('./InstallCliInPath');
 
 // Initialize `@electron/remote` module
 require('@electron/remote/main').initialize();
@@ -69,7 +74,7 @@ let windowCounter = 0; // Counter for creating unique session partitions
 // so have to ignore one more).
 const argsParserOptions = {
   boolean: ['dev-tools', 'disable-update-check', 'keep-open'],
-  string: ['_', 'run-command'],
+  string: ['_', 'run-command', 'cmd-args'],
 };
 const args = parseArgs(process.argv.slice(isDev ? 2 : 1), argsParserOptions);
 
@@ -300,9 +305,7 @@ function createNewWindow(windowArgs = args) {
       // Extract the theme background color passed via the features string
       // by WindowPortal (e.g. "...,themeBackgroundColor=%23282828").
       let backgroundColor = '#000';
-      const match = details.features.match(
-        /themeBackgroundColor=([^,]*)/
-      );
+      const match = details.features.match(/themeBackgroundColor=([^,]*)/);
       if (match) {
         try {
           backgroundColor = decodeURIComponent(match[1]);
@@ -343,8 +346,15 @@ function createNewWindow(windowArgs = args) {
   newWindow.webContents.on('did-create-window', (childWindow, details) => {
     require('@electron/remote/main').enable(childWindow.webContents);
 
-    if (!details.frameName || !details.frameName.startsWith('GDevelopWindowPortal')) {
-      console.warn(`Unexpected frameName for child window: ${details.frameName} - verify handling on Electron side.`);
+    if (
+      !details.frameName ||
+      !details.frameName.startsWith('GDevelopWindowPortal')
+    ) {
+      console.warn(
+        `Unexpected frameName for child window: ${
+          details.frameName
+        } - verify handling on Electron side.`
+      );
     }
 
     // Track child window by frameName so the renderer can look up its
@@ -421,6 +431,12 @@ app.on('ready', function() {
     app.exit(typeof exitCode === 'number' ? exitCode : 0);
   });
 
+  ipcMain.handle('install-cli-in-path', async () => {
+    // Inside an AppImage, process.execPath points into a transient mount that
+    // vanishes on quit; APPIMAGE is the stable file path (still breaks if moved).
+    return installCliInPath(process.env.APPIMAGE || process.execPath);
+  });
+
   ipcMain.on('set-main-menu', (event, mainMenuTemplate) => {
     const window = BrowserWindow.fromWebContents(event.sender);
     Menu.setApplicationMenu(
@@ -442,6 +458,7 @@ app.on('ready', function() {
       numberOfWindows: options.numberOfWindows,
       captureOptions: options.captureOptions,
       openEvent: event,
+      initialBreakpoints: options.initialBreakpoints,
     });
   });
   ipcMain.handle('preview-close', async (event, options) => {
@@ -451,6 +468,31 @@ app.on('ready', function() {
   ipcMain.handle('preview-close-all', async () => {
     return closeAllPreviewWindows();
   });
+
+  ipcMain.handle('preview-debugger-resume', async (event, { windowId }) => {
+    return resumePreviewDebugger(windowId);
+  });
+
+  ipcMain.handle(
+    'preview-debugger-step',
+    async (event, { windowId, payload }) => {
+      return stepPreviewDebugger(windowId, payload);
+    }
+  );
+
+  ipcMain.handle(
+    'preview-debugger-set-breakpoints',
+    async (event, { windowId, breakpoints }) => {
+      return setBreakpointsPreviewDebugger(windowId, breakpoints);
+    }
+  );
+
+  ipcMain.handle(
+    'preview-debugger-schedule-pause',
+    async (event, { windowId }) => {
+      return schedulePauseAtNextEventInPreviewDebugger(windowId);
+    }
+  );
 
   // Piskel image editor
   ipcMain.handle('piskel-load', (event, externalEditorInput) => {
@@ -829,7 +871,7 @@ app.on('ready', function() {
           const escapedPath = projectPath.replace(/'/g, "'\\''");
           const shellCommand = keepOpen
             ? `cd '${escapedPath}' && ${npmCommand}`
-            : `cd '${escapedPath}' && ${npmCommand} && exit || echo "${NPM_SCRIPT_COMMAND_FAILED_MESSAGE}"`;
+            : `cd '${escapedPath}' && ${npmCommand} && exit || echo '${NPM_SCRIPT_COMMAND_FAILED_MESSAGE}'`;
           const script = `tell application "Terminal" to do script "${shellCommand.replace(
             /"/g,
             '\\"'

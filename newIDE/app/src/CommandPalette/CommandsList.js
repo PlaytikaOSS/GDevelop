@@ -30,6 +30,7 @@ export type CommandName =
   | 'OPEN_PLATFORM_SPECIFIC_ASSETS_DIALOG'
   | 'OPEN_PROJECT_RESOURCES'
   | 'OPEN_SEARCH_EXTENSIONS_DIALOG'
+  | 'IMPORT_EXTENSION'
   | 'OPEN_GLOBAL_SEARCH'
   | 'OPEN_LAYOUT'
   | 'OPEN_EXTERNAL_EVENTS'
@@ -62,6 +63,9 @@ export type CommandName =
   | 'ADD_COMMENT_EVENT'
   | 'TOGGLE_EVENT_DISABLED'
   | 'TOGGLE_CONDITION_INVERTED'
+  | 'TOGGLE_BREAKPOINT'
+  | 'TOGGLE_PAUSE_EXECUTION'
+  | 'STEP_NEXT_EVENT'
   | 'CHOOSE_AND_ADD_EVENT'
   | 'MOVE_EVENTS_IN_NEW_GROUP'
   | 'EVENTS_EDITOR_UNDO'
@@ -70,7 +74,8 @@ export type CommandName =
   | 'SEARCH_EVENTS'
   | 'OPEN_EXTENSION_SETTINGS'
   | 'OPEN_PROFILE'
-  | 'OPEN_MEMORY_TRACKER_REGISTRY';
+  | 'OPEN_MEMORY_TRACKER_REGISTRY'
+  | 'INSTALL_CLI_IN_PATH';
 
 export const commandAreas = {
   GENERAL: (t`General`: any),
@@ -185,6 +190,11 @@ const commandsList: { [CommandName]: CommandMetadata } = {
     area: 'IDE',
     displayText: t`Restart 3D editor`,
   },
+  INSTALL_CLI_IN_PATH: {
+    area: 'IDE',
+    displayText: t`Install GDevelop CLI in PATH`,
+    noShortcut: true,
+  },
 
   // Project manager commands
   OPEN_PROJECT_PROPERTIES: {
@@ -210,6 +220,11 @@ const commandsList: { [CommandName]: CommandMetadata } = {
   OPEN_SEARCH_EXTENSIONS_DIALOG: {
     area: 'PROJECT',
     displayText: t`Search/import extensions`,
+  },
+  IMPORT_EXTENSION: {
+    area: 'PROJECT',
+    displayText: t`Import extension...`,
+    noShortcut: true,
   },
   OPEN_GLOBAL_SEARCH: {
     area: 'IDE',
@@ -323,6 +338,18 @@ const commandsList: { [CommandName]: CommandMetadata } = {
   TOGGLE_EVENT_DISABLED: {
     area: 'EVENTS',
     displayText: t`Toggle disabled event`,
+  },
+  TOGGLE_BREAKPOINT: {
+    area: 'EVENTS',
+    displayText: t`Toggle breakpoint`,
+  },
+  TOGGLE_PAUSE_EXECUTION: {
+    area: 'PROJECT',
+    displayText: t`Pause/resume execution`,
+  },
+  STEP_NEXT_EVENT: {
+    area: 'PROJECT',
+    displayText: t`Step to next event`,
   },
   TOGGLE_CONDITION_INVERTED: {
     area: 'EVENTS',

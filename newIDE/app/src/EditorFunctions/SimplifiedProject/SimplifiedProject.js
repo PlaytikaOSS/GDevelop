@@ -58,8 +58,11 @@ type SimplifiedResource = {|
 
 type SimplifiedProject = {|
   properties: {|
+    name: string,
     gameResolutionWidth: number,
     gameResolutionHeight: number,
+    orientation: string,
+    scaleMode: string,
     firstLayout: string,
   |},
   globalObjects: Array<SimplifiedObject>,
@@ -77,7 +80,7 @@ export type SimplifiedProjectOptions = {|
   scopeToScene?: string,
 |};
 
-const getVariableTypeAsString = (
+export const getVariableTypeAsString = (
   gd: libGDevelop,
   variable: gdVariable
 ): string => {
@@ -408,8 +411,11 @@ export const makeSimplifiedProjectBuilder = (
 
     const simplifiedProject: SimplifiedProject = {
       properties: {
+        name: project.getName(),
         gameResolutionWidth: project.getGameResolutionWidth(),
         gameResolutionHeight: project.getGameResolutionHeight(),
+        orientation: project.getOrientation(),
+        scaleMode: project.getScaleMode(),
         firstLayout: project.getFirstLayout(),
       },
       resources: getSimplifiedResourcesJson(project.getResourcesManager()),

@@ -12,10 +12,24 @@ import PreferencesContext, {
 import { scanProjectForValidationErrors } from '../Utils/EventsValidationScanner';
 import Window from '../Utils/Window';
 import optionalRequire from '../Utils/OptionalRequire';
+import { type FileMetadata } from '../ProjectsStorage';
 
 const electron = optionalRequire('electron');
 const ipcRenderer = electron ? electron.ipcRenderer : null;
 const fs = optionalRequire('fs');
+
+export type ImportExtension = (options: {|
+  i18n: I18nType,
+  project: gdProject,
+  onWillInstallExtension: (extensionNames: Array<string>) => void,
+  onExtensionInstalled: (extensionNames: Array<string>) => void,
+  filePaths?: Array<string>,
+  skipUserPrompts?: boolean,
+|}) => Promise<Array<string>>;
+
+export type SaveProject = (options?: {|
+  skipNewVersionWarning: boolean,
+|}) => Promise<?FileMetadata>;
 
 // Commands registered here are awaited by the CLI dispatcher so the process
 // exits with a meaningful code. Unregistered commands fall back to
@@ -23,8 +37,23 @@ const fs = optionalRequire('fs');
 export type CliCommandRunner = (
   project: gdProject,
   i18n: I18nType,
-  context: {| preferences: Preferences |}
+  context: {|
+    preferences: Preferences,
+    commandArgs: Array<string>,
+    importExtension: ImportExtension,
+    onWillInstallExtension: (extensionNames: Array<string>) => void,
+    onExtensionInstalled: (extensionNames: Array<string>) => void,
+    saveProject: SaveProject,
+  |}
 ) => Promise<void>;
+
+const getCommandArgs = (): Array<string> => {
+  const appArguments = Window.getArguments();
+  const arg = appArguments['cmd-args'];
+  if (!arg) return [];
+  const values = Array.isArray(arg) ? arg : [arg];
+  return values.map(value => value.trim()).filter(Boolean);
+};
 
 const runners: { [commandName: string]: CliCommandRunner } = {
   EXPORT_HTML5_EXTERNAL: async (project, i18n, { preferences }) => {
@@ -41,6 +70,41 @@ const runners: { [commandName: string]: CliCommandRunner } = {
     }
     await exportLocalHtml5Headless({ project, i18n });
   },
+  IMPORT_EXTENSION_AND_SAVE: async (
+    project,
+    i18n,
+    {
+      commandArgs,
+      importExtension,
+      onWillInstallExtension,
+      onExtensionInstalled,
+      saveProject,
+    }
+  ) => {
+    if (commandArgs.length === 0) {
+      throw new Error(
+        '[CLI] IMPORT_EXTENSION_AND_SAVE requires at least one path via --cmd-args.'
+      );
+    }
+    const importedExtensionNames = await importExtension({
+      i18n,
+      project,
+      filePaths: commandArgs,
+      skipUserPrompts: true,
+      onWillInstallExtension,
+      onExtensionInstalled,
+    });
+    if (importedExtensionNames.length === 0) {
+      throw new Error(
+        '[CLI] Extension import failed or produced no extensions.'
+      );
+    }
+
+    const fileMetadata = await saveProject({ skipNewVersionWarning: true });
+    if (!fileMetadata) {
+      throw new Error('[CLI] Extension imported but project save failed.');
+    }
+  },
 };
 
 export const getAwaitableCliRunner = (commandName: string): ?CliCommandRunner =>
@@ -54,9 +118,16 @@ const exitApp = (exitCode: number) => {
 };
 
 const ensureProjectExtensionsReadyForCli = async (
+  project: gdProject,
   eventsFunctionsExtensionsState: EventsFunctionsExtensionsState
 ): Promise<boolean> => {
-  await eventsFunctionsExtensionsState.ensureLoadFinished();
+  // Headless export must ship runtime-flavored extension code (no breakpoint
+  // instrumentation), regardless of what flavor the project load or a prior
+  // preview generated.
+  await eventsFunctionsExtensionsState.ensureProjectEventsFunctionsExtensionsForFlavor(
+    project,
+    false
+  );
 
   if (eventsFunctionsExtensionsState.eventsFunctionsExtensionsError) {
     console.error(
@@ -86,12 +157,20 @@ type Props = {|
   project: ?gdProject,
   i18n: I18nType,
   commandPaletteRef: {| current: ?CommandPaletteInterface |},
+  importExtension: ImportExtension,
+  onWillInstallExtension: (extensionNames: Array<string>) => void,
+  onExtensionInstalled: (extensionNames: Array<string>) => void,
+  saveProject: SaveProject,
 |};
 
 export const useCliCommandRunner = ({
   project,
   i18n,
   commandPaletteRef,
+  importExtension,
+  onWillInstallExtension,
+  onExtensionInstalled,
+  saveProject,
 }: Props) => {
   const eventsFunctionsExtensionsState = React.useContext(
     EventsFunctionsExtensionsContext
@@ -117,6 +196,7 @@ export const useCliCommandRunner = ({
       const run = async () => {
         try {
           const extensionsReady = await ensureProjectExtensionsReadyForCli(
+            project,
             eventsFunctionsExtensionsState
           );
           if (!extensionsReady) {
@@ -126,7 +206,14 @@ export const useCliCommandRunner = ({
 
           const awaitableRunner = getAwaitableCliRunner(commandName);
           if (awaitableRunner) {
-            await awaitableRunner(project, i18n, { preferences });
+            await awaitableRunner(project, i18n, {
+              preferences,
+              commandArgs: getCommandArgs(),
+              importExtension,
+              onWillInstallExtension,
+              onExtensionInstalled,
+              saveProject,
+            });
             console.info(
               `[CLI] Command "${commandName}" finished successfully.`
             );
@@ -165,6 +252,10 @@ export const useCliCommandRunner = ({
       commandPaletteRef,
       eventsFunctionsExtensionsState,
       preferences,
+      importExtension,
+      onWillInstallExtension,
+      onExtensionInstalled,
+      saveProject,
     ]
   );
 
