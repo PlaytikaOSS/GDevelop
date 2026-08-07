@@ -25,7 +25,9 @@
 # Set DRY_RUN to "true" temporarily to exercise the workflow without building.
 #
 # Concurrency: rapid consecutive merges cancel in-flight runs for the same
-# target branch - the newest merge is what we want to ship.
+# target branch - the newest merge is what we want to ship. Grouped per event
+# type so a PR merge's own resulting push (a no-op unless "[force-build]")
+# can't cancel the "pull_request" run that does the actual build.
 #
 # Required permissions: contents: write (create tags, releases, upload
 # assets). Provided by the default GITHUB_TOKEN on the fork; no PAT needed.
@@ -53,7 +55,13 @@ on:
       - release/beta-editor
 
 concurrency:
-  group: build-editor-${{ github.event.pull_request.base.ref || github.ref_name }}
+  # Keyed by event type too: merging a PR fires both a "pull_request" (closed,
+  # merged) event and a "push" of the resulting merge commit, targeting the
+  # same branch almost simultaneously. Without the event-type segment they'd
+  # share one group and cancel-in-progress could cancel the real build (the
+  # "pull_request" run) with the "push" run, which is a no-op unless the
+  # commit message has "[force-build]".
+  group: build-editor-${{ github.event_name }}-${{ github.event.pull_request.base.ref || github.ref_name }}
   cancel-in-progress: true
 
 permissions:
