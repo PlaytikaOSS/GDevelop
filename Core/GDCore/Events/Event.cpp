@@ -13,7 +13,6 @@
 #include "GDCore/Extensions/Metadata/MetadataProvider.h"
 #include "GDCore/Extensions/Platform.h"
 #include "GDCore/Extensions/PlatformExtension.h"
-#include "GDCore/Tools/UUID/UUID.h"
 
 namespace gd {
 
@@ -54,21 +53,6 @@ BaseEvent& BaseEvent::operator=(const BaseEvent& other) {
 }
 
 bool BaseEvent::HasSubEvents() const { return !GetSubEvents().IsEmpty(); }
-
-const gd::String& BaseEvent::GetOrCreatePersistentUuid() {
-  if (persistentUuid.empty()) persistentUuid = UUID::MakeUuid4();
-  return persistentUuid;
-}
-
-BaseEvent& BaseEvent::ResetPersistentUuid() {
-  persistentUuid = UUID::MakeUuid4();
-  return *this;
-}
-
-BaseEvent& BaseEvent::ClearPersistentUuid() {
-  persistentUuid = "";
-  return *this;
-}
 
 bool BaseEvent::HasVariables() const { return GetVariables().Count() > 0; }
 

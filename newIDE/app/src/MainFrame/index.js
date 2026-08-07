@@ -160,6 +160,7 @@ import { useImportExtension } from '../AssetStore/ExtensionStore/InstallExtensio
 import CommandPalette, {
   type CommandPaletteInterface,
 } from '../CommandPalette/CommandPalette';
+import WindowCommandsProvider from '../CommandPalette/WindowCommandsProvider';
 import {
   type ImportExtension,
   type SaveProject,
@@ -174,8 +175,6 @@ import HotReloadLogsDialog from '../HotReload/HotReloadLogsDialog';
 import { useDiscordRichPresence } from '../Utils/UpdateDiscordRichPresence';
 import { delay } from '../Utils/Delay';
 import useNewProjectDialog from './UseNewProjectDialog';
-import useBreakpointDebugger from './UseBreakpointDebugger';
-import { clearBreakpointsSession } from '../EventsSheet/BreakpointsSessionStore';
 import { findAndLogProjectPreviewErrors } from '../Utils/ProjectErrorsChecker';
 import { renameResourcesInProject } from '../ResourcesList/ResourceUtils';
 import useNewResourceDialog from '../ResourcesList/useNewResourceDialog';
@@ -415,11 +414,13 @@ export type Props = {|
   useCliCommandRunner: ({|
     project: ?gdProject,
     i18n: I18n,
+    fileIdentifier: ?string,
     commandPaletteRef: {| current: ?CommandPaletteInterface |},
     importExtension: ImportExtension,
     onWillInstallExtension: (extensionNames: Array<string>) => void,
     onExtensionInstalled: (extensionNames: Array<string>) => void,
     saveProject: SaveProject,
+    ensureProjectSettingsApplied: () => Promise<void>,
   |}) => void,
   onExportHtml5External?: (project: gdProject, i18n: I18n) => Promise<void>,
 |};
@@ -565,6 +566,7 @@ const MainFrame = (props: Props): React.MixedElement => {
   );
   const [previewState, setPreviewState] = React.useState(initialPreviewState);
   const commandPaletteRef = React.useRef((null: ?CommandPaletteInterface));
+  const lastProjectSettingsPromise = React.useRef<?Promise<void>>(null);
   const inAppTutorialOrchestratorRef = React.useRef<?InAppTutorialOrchestratorInterface>(
     null
   );
@@ -1180,9 +1182,6 @@ const MainFrame = (props: Props): React.MixedElement => {
       eventsFunctionsExtensionsState.unloadProjectEventsFunctionsExtensions(
         currentProject
       );
-      // The session breakpoints reference this project's events lists, which
-      // become dangling once it is deleted from memory.
-      clearBreakpointsSession();
       currentProject.delete();
       sealUnsavedChanges();
       console.info('Project closed.');
@@ -1207,6 +1206,48 @@ const MainFrame = (props: Props): React.MixedElement => {
     ]
   );
 
+  const ensureProjectSettingsApplied = React.useCallback((): Promise<void> => {
+    return lastProjectSettingsPromise.current || Promise.resolve();
+  }, []);
+
+  const loadProjectSettings = React.useCallback(
+    (fileMetadata: ?FileMetadata): Promise<void> => {
+      if (!fileMetadata) return Promise.resolve();
+
+      const currentPromise: Promise<void> = (async () => {
+        try {
+          const parsedProjectSettings = await readProjectSettings(
+            fileMetadata.fileIdentifier
+          );
+          if (parsedProjectSettings) {
+            applyProjectPreferences(parsedProjectSettings, preferences);
+            await setState(currentState => ({
+              ...currentState,
+              toolbarButtons: parsedProjectSettings.toolbarButtons || [],
+            }));
+            setResourceCustomPropertyConfigs(
+              parsedProjectSettings.resourceCustomProperties || []
+            );
+          }
+        } catch (error) {
+          console.warn(
+            '[MainFrame] Failed to read project settings:',
+            error.message
+          );
+        } finally {
+          // Only clear the ref if no newer load has been queued since.
+          if (lastProjectSettingsPromise.current === currentPromise) {
+            lastProjectSettingsPromise.current = null;
+          }
+        }
+      })();
+
+      lastProjectSettingsPromise.current = currentPromise;
+      return currentPromise;
+    },
+    [preferences, setState, setResourceCustomPropertyConfigs]
+  );
+
   const loadFromProject = React.useCallback(
     async (project: gdProject, fileMetadata: ?FileMetadata): Promise<State> => {
       let updatedFileMetadata: ?FileMetadata = fileMetadata
@@ -1225,7 +1266,10 @@ const MainFrame = (props: Props): React.MixedElement => {
         // is able to save. Otherwise, it means nothing to consider this as
         // a recent file: we must wait for the user to save in a "real" storage
         // (like locally or on Google Drive).
-        if (onSaveProject) {
+        // Also skip this when running a headless CLI command (`--run-command`):
+        // such projects are opened programmatically (e.g. for automated exports)
+        // and shouldn't pollute the "recent projects" list shown in the regular UI.
+        if (onSaveProject && !Window.isRunningCommandFromCli()) {
           preferences.insertRecentProjectFile({
             fileMetadata: updatedFileMetadata,
             storageProviderName: storageProvider.internalName,
@@ -1256,6 +1300,11 @@ const MainFrame = (props: Props): React.MixedElement => {
         project
       );
 
+      // Likewise, start reading the project's `gdevelop-settings.yaml` before
+      // exposing the project via state, so `ensureProjectSettingsApplied()`
+      // sees the pending promise as soon as the CLI useEffect fires.
+      loadProjectSettings(updatedFileMetadata);
+
       const state = await setState(state => ({
         ...state,
         currentProject: project,
@@ -1284,28 +1333,6 @@ const MainFrame = (props: Props): React.MixedElement => {
           authenticatedUser,
         }));
 
-        // Read and apply project settings from gdevelop-settings.yaml if it exists
-        try {
-          const parsedProjectSettings = await readProjectSettings(
-            updatedFileMetadata.fileIdentifier
-          );
-          if (parsedProjectSettings) {
-            applyProjectPreferences(parsedProjectSettings, preferences);
-            setState(currentState => ({
-              ...currentState,
-              toolbarButtons: parsedProjectSettings.toolbarButtons || [],
-            }));
-            setResourceCustomPropertyConfigs(
-              parsedProjectSettings.resourceCustomProperties || []
-            );
-          }
-        } catch (error) {
-          console.warn(
-            '[MainFrame] Failed to read project settings:',
-            error.message
-          );
-        }
-
         // Apply the preview layout override stored in the project file
         // (set via "Use this scene to start all previews").
         const previewLayoutName = project.getPreviewLayout();
@@ -1332,6 +1359,7 @@ const MainFrame = (props: Props): React.MixedElement => {
       getStorageProviderOperations,
       ensureResourcesAreFetched,
       authenticatedUser,
+      loadProjectSettings,
     ]
   );
 
@@ -2615,17 +2643,7 @@ const MainFrame = (props: Props): React.MixedElement => {
       ]);
 
       try {
-        // In-game edition uses the window-message debugger client, not CDP,
-        // so it never needs breakpoint instrumentation and can just wait for
-        // whatever flavor is already loaded (its hot reloads are frequent).
-        if (isForInGameEdition) {
-          await eventsFunctionsExtensionsState.ensureLoadFinished();
-        } else {
-          await eventsFunctionsExtensionsState.ensureProjectEventsFunctionsExtensionsForFlavor(
-            currentProject,
-            true
-          );
-        }
+        await eventsFunctionsExtensionsState.ensureLoadFinished();
 
         const startTime = Date.now();
         let inAppTutorialMessageInPreview = { message: '', position: '' };
@@ -3084,70 +3102,6 @@ const MainFrame = (props: Props): React.MixedElement => {
     openLayout,
     openExternalEvents,
     openEventsFunctionsExtension,
-  });
-
-  // Ref so focusOnExtensionFunction sees the current tabs without needing
-  // to re-subscribe every time tabs change.
-  const editorTabsRef = React.useRef(state.editorTabs);
-  React.useEffect(
-    () => {
-      editorTabsRef.current = state.editorTabs;
-    },
-    [state.editorTabs]
-  );
-
-  // Open / focus an extension function editor. When the tab is already open,
-  // drives it via the live ref since `initiallyFocused*` props are mount-only.
-  const focusOnExtensionFunction = React.useCallback(
-    (
-      extensionName: string,
-      functionName: string,
-      behaviorName: ?string,
-      objectName: ?string
-    ) => {
-      if (!currentProject) return;
-      if (!currentProject.hasEventsFunctionsExtensionNamed(extensionName))
-        return;
-      const eventsFunctionsExtension = currentProject.getEventsFunctionsExtension(
-        extensionName
-      );
-      const foundTab = getEventsFunctionsExtensionEditor(
-        editorTabsRef.current,
-        eventsFunctionsExtension
-      );
-      if (foundTab) {
-        foundTab.editor.selectEventsFunctionByName(
-          functionName,
-          behaviorName,
-          objectName
-        );
-        setState(state => ({
-          ...state,
-          editorTabs: changeCurrentTab(
-            state.editorTabs,
-            foundTab.paneIdentifier,
-            foundTab.tabIndex
-          ),
-        }));
-      } else {
-        openEventsFunctionsExtension(
-          extensionName,
-          functionName,
-          behaviorName,
-          objectName
-        );
-      }
-    },
-    [currentProject, setState, openEventsFunctionsExtension]
-  );
-
-  const { togglePauseExecution, stepNextEvent } = useBreakpointDebugger({
-    previewDebuggerServer,
-    currentProject,
-    previewLayoutName: previewState.previewLayoutName,
-    openLayout,
-    focusOnExtensionFunction,
-    showAlert,
   });
 
   const onEditorTabClosing = React.useCallback(
@@ -5340,8 +5294,6 @@ const MainFrame = (props: Props): React.MixedElement => {
     onRestartInGameEditor,
     onOpenGlobalSearch: openGlobalSearch,
     onOpenMemoryTrackerRegistry: () => setMemoryTrackedRegistryDialogOpen(true),
-    onTogglePauseExecution: togglePauseExecution,
-    onStepNextEvent: stepNextEvent,
     onImportExtension,
     canInstallCliInPath: isCliInPathInstallSupported(),
     onInstallCliInPath: async () => {
@@ -5359,11 +5311,13 @@ const MainFrame = (props: Props): React.MixedElement => {
   useCliCommandRunner({
     project: state.currentProject,
     i18n,
+    fileIdentifier,
     commandPaletteRef,
     importExtension,
     onWillInstallExtension,
     onExtensionInstalled,
     saveProject,
+    ensureProjectSettingsApplied,
   });
 
   const resourceManagementProps: ResourceManagementProps = React.useMemo(
@@ -5708,49 +5662,55 @@ const MainFrame = (props: Props): React.MixedElement => {
       {// Render games platform frame before the editors, so the editor have priority
       // in what to display (ex: Loader of play section)
       gamesPlatformFrameTools.renderGamesPlatformFrame()}
-      <LeaderboardProvider
-        gameId={currentProject ? currentProject.getProjectUuid() : ''}
-      >
-        {renderNpmScriptConfirmDialog()}
-        <PanesContainer
-          hasEditorsInLeftPane={hasEditorsInLeftPane}
-          hasEditorsInRightPane={hasEditorsInRightPane}
-          onRequestDrawerClose={requestCloseAskAiDrawerInPane}
-          renderPane={({
-            paneIdentifier,
-            isLeftMostPane,
-            isRightMostPane,
-            isDrawer,
-            areSidePanesDrawers,
-            onSetPointerEventsNone,
-            onSetPaneDrawerState,
-            onRequestPaneClose,
-            drawerState,
-            rightPaneDrawerOpen,
-          }) => (
-            <EditorTabsPane
-              {...editorTabsPaneProps}
-              paneIdentifier={paneIdentifier}
-              isLeftMostPane={isLeftMostPane}
-              isRightMostPane={isRightMostPane}
-              isDrawer={isDrawer}
-              areSidePanesDrawers={areSidePanesDrawers}
-              onSetPointerEventsNone={onSetPointerEventsNone}
-              onSetPaneDrawerState={onSetPaneDrawerState}
-              onPopOutTab={onPopOutTab}
-              onRequestPaneClose={onRequestPaneClose}
-              drawerState={drawerState}
-              rightPaneDrawerOpen={rightPaneDrawerOpen}
-            />
-          )}
-        />
-      </LeaderboardProvider>
       <PoppedOutWindows
         {...editorTabsPaneProps}
         onClose={onExternalWindowClose}
         onPopIn={onPopInTab}
       />
-      <CommandPalette ref={commandPaletteRef} />
+      {/* Editors of the main window register their commands in their own
+      command manager, so that they stay separated from the ones of the popped
+      out windows (rendered above, outside of this provider): a keyboard
+      shortcut must always run the command of the window where it was pressed. */}
+      <WindowCommandsProvider>
+        <LeaderboardProvider
+          gameId={currentProject ? currentProject.getProjectUuid() : ''}
+        >
+          {renderNpmScriptConfirmDialog()}
+          <PanesContainer
+            hasEditorsInLeftPane={hasEditorsInLeftPane}
+            hasEditorsInRightPane={hasEditorsInRightPane}
+            onRequestDrawerClose={requestCloseAskAiDrawerInPane}
+            renderPane={({
+              paneIdentifier,
+              isLeftMostPane,
+              isRightMostPane,
+              isDrawer,
+              areSidePanesDrawers,
+              onSetPointerEventsNone,
+              onSetPaneDrawerState,
+              onRequestPaneClose,
+              drawerState,
+              rightPaneDrawerOpen,
+            }) => (
+              <EditorTabsPane
+                {...editorTabsPaneProps}
+                paneIdentifier={paneIdentifier}
+                isLeftMostPane={isLeftMostPane}
+                isRightMostPane={isRightMostPane}
+                isDrawer={isDrawer}
+                areSidePanesDrawers={areSidePanesDrawers}
+                onSetPointerEventsNone={onSetPointerEventsNone}
+                onSetPaneDrawerState={onSetPaneDrawerState}
+                onPopOutTab={onPopOutTab}
+                onRequestPaneClose={onRequestPaneClose}
+                drawerState={drawerState}
+                rightPaneDrawerOpen={rightPaneDrawerOpen}
+              />
+            )}
+          />
+        </LeaderboardProvider>
+        <CommandPalette ref={commandPaletteRef} />
+      </WindowCommandsProvider>
       <LoaderModal
         showImmediately={showLoaderImmediately}
         showAfterDelay={showLoaderAfterDelay}

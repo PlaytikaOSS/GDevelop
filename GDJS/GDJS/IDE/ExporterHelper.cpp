@@ -28,10 +28,8 @@
 #include "GDCore/Extensions/PlatformExtension.h"
 #include "GDCore/IDE/AbstractFileSystem.h"
 #include "GDCore/IDE/CaptureOptions.h"
-#include "GDCore/IDE/Events/ArbitraryEventsWorker.h"
 #include "GDCore/IDE/Events/UsedExtensionsFinder.h"
 #include "GDCore/IDE/ExportedDependencyResolver.h"
-#include "GDCore/IDE/ProjectBrowserHelper.h"
 #include "GDCore/IDE/Project/ProjectResourcesCopier.h"
 #include "GDCore/IDE/Project/ResourcesMergingHelper.h"
 #include "GDCore/IDE/Project/SceneResourcesFinder.h"
@@ -68,14 +66,6 @@ double LogTimeSpent(const gd::String &name, double previousTime) {
                 "ms");
   return GetTimeNow();
 }
-
-class EventsPersistentUuidAssigner : public gd::ArbitraryEventsWorker {
- private:
-  bool DoVisitEvent(gd::BaseEvent &event) override {
-    event.GetOrCreatePersistentUuid();
-    return false;
-  }
-};
 }  // namespace
 
 namespace gdjs {
@@ -138,14 +128,6 @@ bool ExporterHelper::ExportProjectForPixiPreview(
   std::vector<gd::String> resourcesFiles;
 
   std::vector<gd::InGameEditorResourceMetadata> inGameEditorResources;
-
-  // Breakpoint/step hits are reported by event UUID. Assign them on the live
-  // project before cloning so the generator's clone shares the editor's ids;
-  // otherwise a freshly assigned UUID would live only on the clone.
-  if (options.cdpDebuggerEnabled) {
-    EventsPersistentUuidAssigner uuidAssigner;
-    gd::ProjectBrowserHelper::ExposeProjectEvents(options.project, uuidAssigner);
-  }
 
   // TODO Try to remove side effects to avoid the copy
   // that destroys the AST in cache.
@@ -393,10 +375,6 @@ void ExporterHelper::SerializeRuntimeGameOptions(
     gd::SerializerElement &runtimeGameOptions) {
   // Create the setup options passed to the gdjs.RuntimeGame
   runtimeGameOptions.AddChild("isPreview").SetBoolValue(true);
-  // Tells the runtime a CDP debugger is attached so `debugger;` statements
-  // are live (local Electron preview only).
-  runtimeGameOptions.AddChild("cdpDebuggerEnabled")
-      .SetBoolValue(options.cdpDebuggerEnabled);
 
   auto &initialRuntimeGameStatus =
       runtimeGameOptions.AddChild("initialRuntimeGameStatus");
@@ -1203,7 +1181,6 @@ void ExporterHelper::AddLibsInclude(bool pixiRenderers,
   InsertUnique(includesFiles, "timer.js");
   InsertUnique(includesFiles, "runtimewatermark.js");
   InsertUnique(includesFiles, "runtimegame.js");
-  InsertUnique(includesFiles, "breakpointDebugSupport.js");
   InsertUnique(includesFiles, "variable.js");
   InsertUnique(includesFiles, "variablescontainer.js");
   InsertUnique(includesFiles, "oncetriggers.js");

@@ -84,8 +84,6 @@ export const DefaultMediumScreenScopeInLayout = (): React.Node => (
           highlightedAiGeneratedEventIds={
             new Set(['fake-ai-generated-event-id-1'])
           }
-          breakpoints={new Set()}
-          pausedOnEventPath={null}
         />
       </FixedHeightFlexContainer>
     </div>
@@ -145,8 +143,6 @@ export const DefaultSmallScreenScopeInLayout = (): React.Node => (
           highlightedAiGeneratedEventIds={
             new Set(['fake-ai-generated-event-id-1'])
           }
-          breakpoints={new Set()}
-          pausedOnEventPath={null}
         />
       </FixedHeightFlexContainer>
     </div>
@@ -203,8 +199,6 @@ export const DefaultMediumScreenScopeNotInLayout = (): React.Node => (
           highlightedAiGeneratedEventIds={
             new Set(['fake-ai-generated-event-id-1'])
           }
-          breakpoints={new Set()}
-          pausedOnEventPath={null}
         />
       </FixedHeightFlexContainer>
     </div>
@@ -264,8 +258,6 @@ export const EmptySmallScreenScopeInALayout = (): React.Node => (
           highlightedAiGeneratedEventIds={
             new Set(['fake-ai-generated-event-id-1'])
           }
-          breakpoints={new Set()}
-          pausedOnEventPath={null}
         />
       </FixedHeightFlexContainer>
     </div>

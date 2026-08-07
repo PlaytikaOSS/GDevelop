@@ -22,7 +22,6 @@ import {
 import Window from '../../../Utils/Window';
 import { getIDEVersionWithHash } from '../../../Version';
 import { setEmbeddedGameFramePreviewLocation } from '../../../EmbeddedGame/EmbeddedGameFrame';
-import { buildAllBreakpointsPayload } from '../../../EventsSheet/BreakpointsSessionStore';
 const electron = optionalRequire('electron');
 const path = optionalRequire('path');
 const ipcRenderer = electron ? electron.ipcRenderer : null;
@@ -115,10 +114,6 @@ export default class LocalPreviewLauncher extends React.Component<
 
     if (!ipcRenderer) return;
 
-    // Inject at launch via addScriptToEvaluateOnNewDocument so frame-0
-    // breakpoints are hittable (WS delivery arrives after the first frame).
-    const initialBreakpoints = buildAllBreakpointsPayload();
-
     ipcRenderer.invoke('preview-open', {
       previewBrowserWindowOptions,
       previewGameIndexHtmlPath: `file://${previewGamePath}/index.html`,
@@ -126,7 +121,6 @@ export default class LocalPreviewLauncher extends React.Component<
       hideMenuBar,
       numberOfWindows,
       captureOptions,
-      initialBreakpoints,
     });
 
     ipcRenderer.removeAllListeners('preview-window-closed');
@@ -285,9 +279,6 @@ export default class LocalPreviewLauncher extends React.Component<
           '' + previewDebuggerServerAddress.port
         );
       }
-      // The preview window always has a CDP debugger attached (see
-      // attachCdpToPreview), so the generated `debugger;` statements are live.
-      previewExportOptions.setCdpDebuggerEnabled(true);
     }
 
     const includeFileHashs = this.props.getIncludeFileHashs();
