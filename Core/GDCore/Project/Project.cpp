@@ -741,10 +741,6 @@ void Project::UnserializeFrom(const SerializerElement& element) {
       propElement.GetChild("platformSpecificAssets"));
   loadingScreen.UnserializeFrom(propElement.GetChild("loadingScreen"));
   watermark.UnserializeFrom(propElement.GetChild("watermark"));
-  sceneResourcesPreloading =
-      propElement.GetStringAttribute("sceneResourcesPreloading", "at-startup");
-  sceneResourcesUnloading =
-      propElement.GetStringAttribute("sceneResourcesUnloading", "never");
 
   authorIds.clear();
   auto& authorIdsElement = propElement.GetChild("authorIds");
@@ -916,11 +912,6 @@ void Project::UnserializeFrom(const SerializerElement& element) {
         externalEventElement.GetStringAttribute("name", "", "Name"),
         GetExternalEventsCount());
     externalEvents.UnserializeFrom(*this, externalEventElement);
-  }
-
-  tests.ClearTests();
-  if (element.HasChild("tests")) {
-    tests.UnserializeTestsFrom(element.GetChild("tests"));
   }
 
   externalLayouts.clear();
@@ -1176,10 +1167,6 @@ void Project::SerializeTo(SerializerElement& element) const {
     GetExternalEvents(i).SerializeTo(
         externalEventsElement.AddChild("externalEvents"));
 
-  if (tests.GetTestsCount() > 0) {
-    tests.SerializeTestsTo(element.AddChild("tests"));
-  }
-
   SerializerElement& eventsFunctionsExtensionsElement =
       element.AddChild("eventsFunctionsExtensions");
   eventsFunctionsExtensionsElement.ConsiderAsArrayOf(
@@ -1302,8 +1289,6 @@ void Project::Init(const gd::Project& game) {
   scenes = gd::Clone(game.scenes);
 
   externalEvents = gd::Clone(game.externalEvents);
-
-  tests = game.tests;
 
   externalLayouts = gd::Clone(game.externalLayouts);
   eventsFunctionsExtensions = gd::Clone(game.eventsFunctionsExtensions);

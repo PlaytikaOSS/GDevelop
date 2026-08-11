@@ -10,7 +10,7 @@ import ListItemText from '@material-ui/core/ListItemText';
 import ListItemSecondaryAction from '@material-ui/core/ListItemSecondaryAction';
 import { LineStackLayout } from '../../../../UI/Layout';
 import Text from '../../../../UI/Text';
-import { DragHandleIcon } from '../../../../UI/DragHandle';
+import DragHandle from '../../../../UI/DragHandle';
 import FlatButton from '../../../../UI/FlatButton';
 import { makeDragSourceAndDropTarget } from '../../../../UI/DragAndDrop/DragSourceAndDropTarget';
 import { useResponsiveWindowSize } from '../../../../UI/Responsive/ResponsiveWindowMeasurer';
@@ -94,7 +94,7 @@ const TeamMemberRow = ({
               <LineStackLayout noMargin alignItems="center">
                 {connectDragSource(
                   <div>
-                    <DragHandleIcon />
+                    <DragHandle />
                   </div>
                 )}
                 {connectDragPreview(

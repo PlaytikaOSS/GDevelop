@@ -32,7 +32,7 @@ export type NamedCommandWithOptions = {|
 
 export interface CommandManagerInterface {
   registerCommand: (commandName: CommandName, command: Command) => void;
-  deregisterCommand: (commandName: CommandName, command?: Command) => void;
+  deregisterCommand: (commandName: CommandName) => void;
   getNamedCommand: (commandName: CommandName) => ?NamedCommand;
   getAllNamedCommands: () => Array<NamedCommand>;
 }
@@ -53,12 +53,11 @@ export default class CommandManager implements CommandManagerInterface {
     this._commands[commandName] = command;
   };
 
-  deregisterCommand = (commandName: CommandName, command?: Command) => {
-    // When a specific command is given, only remove it if it's still the
-    // registered one: a component being unmounted or deactivated must not
-    // remove the command that another component owns (as its registration was
-    // refused, see `registerCommand`).
-    if (command && this._commands[commandName] !== command) return;
+  deregisterCommand = (commandName: CommandName) => {
+    // if (!this._commands[commandName])
+    //   return console.warn(
+    //     `Tried to deregister command ${commandName}, but it is not registered.`
+    //   );
     delete this._commands[commandName];
   };
 

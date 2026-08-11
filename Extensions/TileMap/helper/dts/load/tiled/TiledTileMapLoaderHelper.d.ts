@@ -32,6 +32,6 @@ export declare const extractTileUidFlippedStates: (
  * @return the tile identifier.
  */
 export declare function getTileIdFromTiledGUI(
-  tiledGUI: number
+  tiledGUI: number | undefined
 ): number | undefined;
 //# sourceMappingURL=TiledTileMapLoaderHelper.d.ts.map

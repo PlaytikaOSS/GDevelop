@@ -33,8 +33,7 @@ class EventsFunctionsExtensionCodeGenerator {
       const gd::EventsFunction& eventsFunction,
       const gd::String& codeNamespace,
       std::set<gd::String>& includeFiles,
-      bool compilationForRuntime,
-      bool generateBreakpointInstrumentation = false);
+      bool compilationForRuntime);
 
  private:
   /**

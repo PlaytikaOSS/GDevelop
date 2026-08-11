@@ -33,8 +33,7 @@ class LayoutCodeGenerator {
       const gd::Layout& layout,
       std::set<gd::String>& includeFiles,
       gd::DiagnosticReport& diagnosticReport,
-      bool compilationForRuntime,
-      bool generateBreakpointInstrumentation = false);
+      bool compilationForRuntime);
 
  private:
   const gd::Project& project;

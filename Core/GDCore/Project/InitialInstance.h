@@ -267,19 +267,6 @@ class GD_CORE_API InitialInstance {
    */
   void SetShouldKeepRatio(bool enable = true) { keepRatio = enable; }
 
-  /**
-   * \brief Return true if the instance is hidden when the scene starts.
-   */
-  bool IsHidden() const { return hidden; };
-
-  /**
-   * \brief Set if the instance is hidden when the scene starts.
-   *
-   * A hidden instance is still created but not displayed, until it is
-   * shown with the "Show" action.
-   */
-  void SetHidden(bool enable = true) { hidden = enable; }
-
   ///@}
 
   /** \name Variable management
@@ -496,8 +483,6 @@ class GD_CORE_API InitialInstance {
   bool sealed = false;     ///< True if the instance is sealed
   bool keepRatio = true;   ///< True if the instance's dimensions
                            ///  should keep the same ratio.
-  bool hidden = false;     ///< True if the instance is hidden when
-                           ///  the scene starts.
   mutable gd::String persistentUuid;  ///< A persistent random version 4 UUID,
                                       ///  useful for hot reloading.
 

@@ -54,7 +54,7 @@ SpineObjectConfiguration::GetProperties() const {
       .SetValue(spineResourceName)
       .SetType("resource")
       .AddExtraInfo("spine")
-      .SetLabel(_("Spine skeleton"));
+      .SetLabel(_("Spine json"));
 
   objectProperties["skinName"]
       .SetValue(skinName)

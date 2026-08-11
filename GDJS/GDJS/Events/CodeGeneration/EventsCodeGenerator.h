@@ -45,19 +45,15 @@ class EventsCodeGenerator : public gd::EventsCodeGenerator {
    * \param includeFiles Will be filled with the necessary include files.
    * \param compilationForRuntime Set this to true if the code is generated for
    * runtime.
-   * \param generateBreakpointInstrumentation Set this to true if a CDP
-   * debugger will be attached (local Electron preview only).
    *
    * \return JavaScript code
    */
-  static gd::String GenerateLayoutCode(
-      const gd::Project& project,
-      const gd::Layout& scene,
-      const gd::String& codeNamespace,
-      std::set<gd::String>& includeFiles,
-      gd::DiagnosticReport& diagnosticReport,
-      bool compilationForRuntime = false,
-      bool generateBreakpointInstrumentation = false);
+  static gd::String GenerateLayoutCode(const gd::Project& project,
+                                       const gd::Layout& scene,
+                                       const gd::String& codeNamespace,
+                                       std::set<gd::String>& includeFiles,
+                                       gd::DiagnosticReport& diagnosticReport,
+                                       bool compilationForRuntime = false);
 
   /**
    * Generate JavaScript for executing events of an events based function.
@@ -70,8 +66,6 @@ class EventsCodeGenerator : public gd::EventsCodeGenerator {
    * \param includeFiles Will be filled with the necessary include files.
    * \param compilationForRuntime Set this to true if the code is generated for
    * runtime.
-   * \param generateBreakpointInstrumentation Set this to true if a CDP
-   * debugger will be attached (local Electron preview only).
    *
    * \return JavaScript code
    */
@@ -81,8 +75,7 @@ class EventsCodeGenerator : public gd::EventsCodeGenerator {
       const gd::EventsFunction& eventsFunction,
       const gd::String& codeNamespace,
       std::set<gd::String>& includeFiles,
-      bool compilationForRuntime = false,
-      bool generateBreakpointInstrumentation = false);
+      bool compilationForRuntime = false);
 
   /**
    * Generate JavaScript for executing events of a events based behavior
@@ -133,8 +126,6 @@ class EventsCodeGenerator : public gd::EventsCodeGenerator {
    * \param includeFiles Will be filled with the necessary include files.
    * \param compilationForRuntime Set this to true if the code
    * is generated for runtime.
-   * \param generateBreakpointInstrumentation Set this to true if a CDP
-   * debugger will be attached (local Electron preview only).
    *
    * \return JavaScript code
    */
@@ -149,8 +140,7 @@ class EventsCodeGenerator : public gd::EventsCodeGenerator {
       const gd::String& preludeCode,
       const gd::String& endingCode,
       std::set<gd::String>& includeFiles,
-      bool compilationForRuntime = false,
-      bool generateBreakpointInstrumentation = false);
+      bool compilationForRuntime = false);
 
   /**
    * \brief Generate code for executing an event list
@@ -386,8 +376,6 @@ class EventsCodeGenerator : public gd::EventsCodeGenerator {
       const gd::String& section) override;
   virtual gd::String GenerateProfilerSectionEnd(
       const gd::String& section) override;
-
-  virtual gd::String GenerateBreakpointCode(gd::BaseEvent& event) override;
 
   virtual gd::String GenerateRelationalOperation(
       const gd::String& relationalOperator,

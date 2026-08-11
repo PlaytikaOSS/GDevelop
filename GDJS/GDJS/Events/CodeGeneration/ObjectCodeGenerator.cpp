@@ -23,8 +23,7 @@ gd::String ObjectCodeGenerator::GenerateRuntimeObjectCompleteCode(
     const gd::String& codeNamespace,
     const std::map<gd::String, gd::String>& objectMethodMangledNames,
     std::set<gd::String>& includeFiles,
-    bool compilationForRuntime,
-    bool generateBreakpointInstrumentation) {
+    bool compilationForRuntime) {
   auto& eventsFunctionsVector =
       eventsBasedObject.GetEventsFunctions().GetInternalVector();
 
@@ -88,8 +87,7 @@ gd::String ObjectCodeGenerator::GenerateRuntimeObjectCompleteCode(
                       ? "gdjs.CustomRuntimeObject.prototype.onCreated.call(this);\n"
                       : "",
                   includeFiles,
-                  compilationForRuntime,
-                  generateBreakpointInstrumentation);
+                  compilationForRuntime);
         }
 
         bool hasDoStepPreEventsFunction =

@@ -627,14 +627,11 @@ export const useImportExtension = (): (({
           return [];
         }
       }
-      const requiredExtensions = getRequiredExtensions(
-        importedSerializedExtensions
-      ).filter(
-        dependency => !importedExtensionNames.includes(dependency.extensionName)
-      );
       const requiredExtensionInstallation = await checkRequiredExtensionsUpdate(
         {
-          requiredExtensions,
+          requiredExtensions: getRequiredExtensions(
+            importedSerializedExtensions
+          ),
           project,
           extensionShortHeadersByName,
         }

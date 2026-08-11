@@ -1635,7 +1635,6 @@ const ObjectsList = React.forwardRef<Props, ObjectsListInterface>(
                       renderRightComponent={renderTreeViewItemRightComponent(
                         i18n
                       )}
-                      enableStickyAncestors
                     />
                   )}
                 </AutoSizer>

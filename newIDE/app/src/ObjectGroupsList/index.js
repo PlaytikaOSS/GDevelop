@@ -708,7 +708,6 @@ const ObjectGroupsList = React.forwardRef<Props, ObjectGroupsListInterface>(
                     {({ height }) => (
                       // $FlowFixMe[incompatible-type]
                       <TreeView
-                        enableStickyAncestors
                         key={listKey}
                         ref={treeViewRef}
                         items={treeViewData}

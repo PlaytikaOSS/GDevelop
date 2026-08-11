@@ -764,7 +764,6 @@ const LayersList = React.forwardRef<Props, LayersListInterface>(
                   // $FlowFixMe[incompatible-type]
                   // $FlowFixMe[incompatible-exact]
                   <TreeView
-                    enableStickyAncestors
                     key={listKey}
                     ref={treeViewRef}
                     items={getTreeViewData(i18n)}

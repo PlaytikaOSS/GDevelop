@@ -662,8 +662,6 @@ interface Project {
     void RemoveExternalEvents([Const] DOMString name);
     unsigned long GetExternalEventsPosition([Const] DOMString name);
 
-    [Ref] TestsContainer GetTests();
-
     boolean HasExternalLayoutNamed([Const] DOMString name);
     [Ref] ExternalLayout GetExternalLayout([Const] DOMString name);
     [Ref] ExternalLayout GetExternalLayoutAt(unsigned long index);
@@ -1086,50 +1084,6 @@ interface ExternalEvents {
     void UnserializeFrom([Ref] Project project, [Const, Ref] SerializerElement element);
 };
 
-interface Test {
-    void Test();
-
-    void SetName([Const] DOMString name);
-    [Const, Ref] DOMString GetName();
-
-    void SetType([Const] DOMString type);
-    [Const, Ref] DOMString GetType();
-
-    void SetDescription([Const] DOMString description);
-    [Const, Ref] DOMString GetDescription();
-
-    void SetSource([Const] DOMString source);
-    [Const, Ref] DOMString GetSource();
-
-    void SetLastRunStatus([Const] DOMString lastRunStatus);
-    [Const, Ref] DOMString GetLastRunStatus();
-
-    void SetLastRunAt(double lastRunAt);
-    double GetLastRunAt();
-
-    void SetLastRunDurationMs(double lastRunDurationMs);
-    double GetLastRunDurationMs();
-
-    void SetLastRunFramesExecuted(long lastRunFramesExecuted);
-    long GetLastRunFramesExecuted();
-
-    void SerializeTo([Ref] SerializerElement element);
-    void UnserializeFrom([Const, Ref] SerializerElement element);
-};
-
-interface TestsContainer {
-    [Ref] Test InsertNewTest([Const] DOMString name, unsigned long pos);
-    [Ref] Test InsertTest([Const, Ref] Test test, unsigned long pos);
-    boolean HasTestNamed([Const] DOMString name);
-    [Ref] Test GetTest([Const] DOMString name);
-    [Ref] Test GetTestAt(unsigned long pos);
-    void RemoveTest([Const] DOMString name);
-    void ClearTests();
-    void MoveTest(unsigned long oldIndex, unsigned long newIndex);
-    unsigned long GetTestsCount();
-    unsigned long GetTestPosition([Const, Ref] Test test);
-};
-
 interface ExternalLayout {
     void ExternalLayout();
 
@@ -1535,8 +1489,6 @@ interface InitialInstance {
     void SetSealed(boolean seal);
     boolean ShouldKeepRatio();
     void SetShouldKeepRatio(boolean keepRatio);
-    boolean IsHidden();
-    void SetHidden(boolean hidden);
     long GetZOrder();
     void SetZOrder(long zOrder);
     long GetOpacity();
@@ -2585,9 +2537,6 @@ interface BaseEvent {
 
     [Const, Ref] DOMString GetAiGeneratedEventId();
     void SetAiGeneratedEventId([Const] DOMString aiGeneratedEventId);
-
-    [Const, Ref] DOMString GetOrCreatePersistentUuid();
-    [Const, Ref] DOMString GetPersistentUuid();
 };
 
 interface StandardEvent {
@@ -2781,12 +2730,6 @@ interface ProjectBrowserHelper {
     void STATIC_ExposeProjectEventsWithoutExtensions([Ref] Project project, [Ref] ReadOnlyArbitraryEventsWorkerWithContext worker);
     void STATIC_ExposeProjectObjects([Ref] Project project, [Ref] ArbitraryObjectsWorker worker);
     void STATIC_ExposeEventsFunctionsExtensionEvents([Ref] Project project, [Const, Ref] EventsFunctionsExtension eventsFunctionsExtension, [Ref] ReadOnlyArbitraryEventsWorkerWithContext worker);
-};
-
-interface EventsPersistentUuidHelper {
-    boolean STATIC_EnsureProjectEventsPersistentUuids([Ref] Project project);
-    boolean STATIC_EnsurePersistentUuids([Ref] EventsList events);
-    void STATIC_ResetPersistentUuids([Ref] EventsList events);
 };
 
 interface ResourceExposer {
@@ -3760,8 +3703,6 @@ interface EventsFunctionsExtension {
     [Ref] EventsBasedBehaviorsList GetEventsBasedBehaviors();
     [Ref] EventsBasedObjectsList GetEventsBasedObjects();
 
-    [Ref] TestsContainer GetTests();
-
     void SerializeTo([Ref] SerializerElement element);
     void SerializeToExternal([Ref] SerializerElement element);
     void UnserializeFrom([Ref] Project project, [Const, Ref] SerializerElement element);
@@ -4386,8 +4327,7 @@ interface LayoutCodeGenerator {
         [Const, Ref] Layout layout,
         [Ref] SetString includes,
         [Ref] DiagnosticReport diagnosticReport,
-        boolean compilationForRuntime,
-        boolean generateBreakpointInstrumentation);
+        boolean compilationForRuntime);
 };
 
 [Prefix="gdjs::"]
@@ -4417,8 +4357,7 @@ interface ObjectCodeGenerator {
         [Const] DOMString codeNamespace,
         [Const, Ref] MapStringString objectMethodMangledNames,
         [Ref] SetString includes,
-        boolean compilationForRuntime,
-        boolean generateBreakpointInstrumentation);
+        boolean compilationForRuntime);
     [Const, Value] DOMString STATIC_GetObjectPropertyGetterName([Const] DOMString propertyName);
     [Const, Value] DOMString STATIC_GetObjectPropertySetterName([Const] DOMString propertyName);
     [Const, Value] DOMString STATIC_GetObjectPropertyToggleFunctionName([Const] DOMString propertyName);
@@ -4427,7 +4366,7 @@ interface ObjectCodeGenerator {
 [Prefix="gdjs::"]
 interface EventsFunctionsExtensionCodeGenerator {
     void EventsFunctionsExtensionCodeGenerator([Ref] Project project);
-    [Const, Value] DOMString GenerateFreeEventsFunctionCompleteCode([Const, Ref] EventsFunctionsExtension extension, [Const, Ref] EventsFunction eventsFunction, [Const] DOMString codeNamespac, [Ref] SetString includes, boolean compilationForRuntime, boolean generateBreakpointInstrumentation);
+    [Const, Value] DOMString GenerateFreeEventsFunctionCompleteCode([Const, Ref] EventsFunctionsExtension extension, [Const, Ref] EventsFunction eventsFunction, [Const] DOMString codeNamespac, [Ref] SetString includes, boolean compilationForRuntime);
 };
 
 [Prefix="gdjs::"]
@@ -4452,9 +4391,7 @@ interface PreviewExportOptions {
     [Ref] PreviewExportOptions SetFullLoadingScreen(boolean enable);
     [Ref] PreviewExportOptions SetIsDevelopmentEnvironment(boolean enable);
     [Ref] PreviewExportOptions SetIsInGameEdition(boolean enable);
-    [Ref] PreviewExportOptions SetCdpDebuggerEnabled(boolean enable);
     [Ref] PreviewExportOptions SetInGameEditorSettingsJson([Const] DOMString inGameEditorSettingsJson);
-    [Ref] PreviewExportOptions SetInitialBreakpointsJson([Const] DOMString initialBreakpointsJson);
     [Ref] PreviewExportOptions SetEditorId([Const] DOMString editorId);
     [Ref] PreviewExportOptions SetEditorCameraState3D(
         [Const] DOMString cameraMode,
@@ -4564,9 +4501,6 @@ interface MetadataDeclarationHelper {
         [Const, Ref] EventsBasedObject eventsBasedObject,
         [Ref] MapStringString objectMethodMangledNames);
 
-    [Const, Value] DOMString STATIC_GetSceneCodeNamespace(
-        [Const] DOMString sceneName);
-
     [Const, Value] DOMString STATIC_GetExtensionCodeNamespacePrefix(
         [Const, Ref] EventsFunctionsExtension eventsFunctionsExtension);
 
@@ -4584,11 +4518,6 @@ interface MetadataDeclarationHelper {
 
     [Const, Value] DOMString STATIC_GetObjectFunctionCodeNamespace(
         [Const, Ref] EventsBasedObject eventsBasedObject,
-        [Const] DOMString codeNamespacePrefix);
-
-    [Const, Value] DOMString STATIC_GetObjectEventsFunctionFullyQualifiedContextName(
-        [Const, Ref] EventsBasedObject eventsBasedObject,
-        [Const, Ref] EventsFunction eventsFunction,
         [Const] DOMString codeNamespacePrefix);
 
     boolean STATIC_IsBehaviorLifecycleEventsFunction([Const] DOMString functionName);

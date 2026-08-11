@@ -36,9 +36,6 @@ export type CommandName =
   | 'OPEN_EXTERNAL_EVENTS'
   | 'OPEN_EXTERNAL_LAYOUT'
   | 'OPEN_EXTENSION'
-  | 'OPEN_GAMEPLAY_TEST'
-  | 'RUN_GAMEPLAY_TEST'
-  | 'RUN_ALL_GAMEPLAY_TESTS'
   | 'OPEN_SCENE_PROPERTIES'
   | 'OPEN_SCENE_VARIABLES'
   | 'OPEN_OBJECTS_PANEL'
@@ -66,9 +63,6 @@ export type CommandName =
   | 'ADD_COMMENT_EVENT'
   | 'TOGGLE_EVENT_DISABLED'
   | 'TOGGLE_CONDITION_INVERTED'
-  | 'TOGGLE_BREAKPOINT'
-  | 'TOGGLE_PAUSE_EXECUTION'
-  | 'STEP_NEXT_EVENT'
   | 'CHOOSE_AND_ADD_EVENT'
   | 'MOVE_EVENTS_IN_NEW_GROUP'
   | 'EVENTS_EDITOR_UNDO'
@@ -245,18 +239,6 @@ const commandsList: { [CommandName]: CommandMetadata } = {
     displayText: t`Open external layout...`,
   },
   OPEN_EXTENSION: { area: 'IDE', displayText: t`Open extension...` },
-  OPEN_GAMEPLAY_TEST: {
-    area: 'IDE',
-    displayText: t`Open gameplay test...`,
-  },
-  RUN_GAMEPLAY_TEST: {
-    area: 'PROJECT',
-    displayText: t`Run gameplay test...`,
-  },
-  RUN_ALL_GAMEPLAY_TESTS: {
-    area: 'PROJECT',
-    displayText: t`Run all gameplay tests`,
-  },
 
   // Scene editor commands
   OPEN_SCENE_PROPERTIES: {
@@ -353,18 +335,6 @@ const commandsList: { [CommandName]: CommandMetadata } = {
   TOGGLE_EVENT_DISABLED: {
     area: 'EVENTS',
     displayText: t`Toggle disabled event`,
-  },
-  TOGGLE_BREAKPOINT: {
-    area: 'EVENTS',
-    displayText: t`Toggle breakpoint`,
-  },
-  TOGGLE_PAUSE_EXECUTION: {
-    area: 'PROJECT',
-    displayText: t`Pause/resume execution`,
-  },
-  STEP_NEXT_EVENT: {
-    area: 'PROJECT',
-    displayText: t`Step to next event`,
   },
   TOGGLE_CONDITION_INVERTED: {
     area: 'EVENTS',

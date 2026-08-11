@@ -52,8 +52,7 @@ function generateCompiledEventsForEventsFunctionWithContext(
       eventsFunction,
       namespace,
       includeFiles,
-      true,
-      false
+      true
     );
 
   eventsFunctionsExtensionCodeGenerator.delete();
@@ -214,8 +213,7 @@ function generateCompiledEventsForEventsBasedObject(
     codeNamespace,
     objectMethodMangledNames,
     includeFiles,
-    true,
-    false
+    true
   );
   if (options.logCode) {
     console.log(code);
@@ -292,8 +290,7 @@ function generateCompiledEventsForSerializedEventsBasedExtension(
           eventsFunction,
           codeNamespace,
           includeFiles,
-          true,
-          false
+          true
         ),
         gdjs,
         runtimeScene
@@ -454,8 +451,7 @@ function generateCompiledEventsForLayout(gd, project, layout, logCode = false) {
     layout,
     includeFiles,
     diagnosticReport,
-    true,
-    false
+    true
   );
 
   layoutCodeGenerator.delete();

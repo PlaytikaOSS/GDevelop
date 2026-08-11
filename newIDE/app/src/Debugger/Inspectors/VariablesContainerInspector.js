@@ -6,10 +6,16 @@ import {
   type CallFunction,
 } from '../GDJSInspectorDescriptions';
 import mapValues from 'lodash/mapValues';
-import { type RuntimeVariable } from '../RuntimeVariablesContext';
 
-// The gdjs.Variable mirror is defined once in RuntimeVariablesContext.
-type Variable = RuntimeVariable;
+// This mirrors the internals of gdjs.Variable.
+type Variable = {|
+  _type: 'string' | 'number' | 'boolean' | 'structure' | 'array',
+  _str: string,
+  _value: number,
+  _bool: boolean,
+  _children: { [string]: Variable },
+  _childrenArray: Array<Variable>,
+|};
 
 // This mirrors the internals of gdjs.VariablesContainer.
 type VariablesContainer = {|

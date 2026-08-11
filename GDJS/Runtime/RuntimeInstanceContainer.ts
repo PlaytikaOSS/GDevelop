@@ -52,11 +52,9 @@ namespace gdjs {
 
     // Options for the debug draw:
     _debugDrawEnabled: boolean = false;
-    _debugDrawShowHitBoxes: boolean = false;
     _debugDrawShowHiddenInstances: boolean = false;
     _debugDrawShowPointsNames: boolean = false;
     _debugDrawShowCustomPoints: boolean = false;
-    _debugDrawHooks: Array<(rendererObject: any) => void> = [];
 
     _onceTriggers: OnceTriggers;
 
@@ -105,21 +103,6 @@ namespace gdjs {
     abstract getScene(): gdjs.RuntimeScene;
 
     abstract getAsyncTasksManager(): gdjs.AsyncTasksManager;
-
-    // Stub so generated profiler code works on any instance container.
-    // RuntimeScene overrides this with a real implementation.
-    getProfiler(): gdjs.Profiler | null {
-      return null;
-    }
-
-    /**
-     * The preview breakpoint manager (owned by the game). Generated event code
-     * calls this on whichever container runs the events (scene or custom-object
-     * sub-container), so the manager records the right calling container.
-     */
-    getBreakpointManager(): gdjs.DebuggerBreakpointManager {
-      return this.getGame().getBreakpointManager();
-    }
 
     /**
      * Convert a point from the canvas coordinates (for example,
@@ -260,14 +243,9 @@ namespace gdjs {
       }
 
       this._debugDrawEnabled = enableDebugDraw;
-      this._debugDrawShowHitBoxes = enableDebugDraw;
       this._debugDrawShowHiddenInstances = showHiddenInstances;
       this._debugDrawShowPointsNames = showPointsNames;
       this._debugDrawShowCustomPoints = showCustomPoints;
-    }
-
-    registerDebugDrawHook(render: (rendererObject: any) => void) {
-      this._debugDrawHooks.push(render);
     }
 
     /**
@@ -401,12 +379,6 @@ namespace gdjs {
 
           newObject.setZOrder(instanceData.zOrder);
           newObject.setLayer(instanceData.layer);
-          // Instances hidden at start are not hidden in the in-game editor:
-          // they must stay visible to be seen and manipulated (like in the
-          // 2D editor).
-          if (instanceData.hidden && !this.getGame().isInGameEdition()) {
-            newObject.hide(true);
-          }
           newObject
             .getVariables()
             .initFrom(instanceData.initialVariables, true);

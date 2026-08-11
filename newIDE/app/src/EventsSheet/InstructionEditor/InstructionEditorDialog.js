@@ -80,10 +80,8 @@ type Props = {|
   onPasteInstructions: () => void, // Unused
   onWillInstallExtension: (extensionNames: Array<string>) => void,
   onExtensionInstalled: (extensionNames: Array<string>) => void,
-  editEventsFunctionParameter: (VariableDialogOpeningProps => void) | null,
-  openEventsBasedEntityPropertyEditorDialog:
-    | (VariableDialogOpeningProps => void)
-    | null,
+  editEventsFunctionParameter: VariableDialogOpeningProps => void,
+  openEventsBasedEntityPropertyEditorDialog: VariableDialogOpeningProps => void,
 |};
 
 const getInitialStepName = (isNewInstruction: boolean): StepName => {
@@ -295,13 +293,11 @@ const InstructionEditorDialog = ({
                 eventsFunction,
                 behaviorParameter
               );
-              if (editEventsFunctionParameter) {
-                editEventsFunctionParameter({
-                  variableName: behaviorParameter.getName(),
-                  shouldCreate: false,
-                  variableType: null,
-                });
-              }
+              editEventsFunctionParameter({
+                variableName: behaviorParameter.getName(),
+                shouldCreate: false,
+                variableType: null,
+              });
               setNewBehaviorDialogOpen(false);
             }
           }

@@ -9,10 +9,6 @@ export const fakeEventsFunctionsExtensionsState: EventsFunctionsExtensionsState 
   unloadProjectEventsFunctionsExtension: (project, extensionName) => {},
   reloadProjectEventsFunctionsExtensions: async project => {},
   reloadProjectEventsFunctionsExtensionMetadata: (project, extension) => {},
-  ensureProjectEventsFunctionsExtensionsForFlavor: async (
-    project,
-    generateForPreview
-  ) => {},
   // $FlowFixMe[incompatible-type]
   // $FlowFixMe[incompatible-exact]
   getEventsFunctionsExtensionWriter: () => LocalEventsFunctionsExtensionWriter,

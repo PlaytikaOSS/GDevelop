@@ -15,15 +15,16 @@ import { Trans } from '@lingui/macro';
 import IconButton from '../../UI/IconButton';
 import EventsRootVariablesFinder from '../../Utils/EventsRootVariablesFinder';
 import { CompactBehaviorSharedDataPropertiesEditor } from './CompactBehaviorSharedDataPropertiesEditor';
-import { CollapsibleSubPanel } from '../../ObjectEditor/CompactObjectPropertiesEditor';
-import { TopLevelCollapsibleSection } from '../../CompactPropertiesEditor/TopLevelCollapsibleSection';
+import {
+  TopLevelCollapsibleSection,
+  CollapsibleSubPanel,
+} from '../../ObjectEditor/CompactObjectPropertiesEditor';
 import { type ResourceManagementProps } from '../../ResourcesList/ResourceSource';
 import { ColumnStackLayout, LineStackLayout } from '../../UI/Layout';
 import { IconContainer } from '../../UI/IconContainer';
 import useForceUpdate from '../../Utils/UseForceUpdate';
 import SceneIcon from '../../UI/CustomSvgIcons/Scene';
 import { usePersistedScrollPosition } from '../../Utils/UsePersistedScrollPosition';
-import { usePersistedCollapsedSection } from '../../Utils/UsePersistedCollapsedSection';
 import Help from '../../UI/CustomSvgIcons/Help';
 import { getHelpLink } from '../../Utils/HelpLink';
 import Window from '../../Utils/Window';
@@ -89,6 +90,9 @@ export const CompactScenePropertiesEditor = ({
   historyHandler,
 }: Props): React.Node => {
   const forceUpdate = useForceUpdate();
+  const [isPropertiesFolded, setIsPropertiesFolded] = React.useState(false);
+  const [isBehaviorsFolded, setIsBehaviorsFolded] = React.useState(false);
+  const [isVariablesFolded, setIsVariablesFolded] = React.useState(false);
   const variablesListRef = React.useRef<?VariablesListInterface>(null);
 
   const allVisibleBehaviors = scene
@@ -109,23 +113,14 @@ export const CompactScenePropertiesEditor = ({
   const scrollViewRef = React.useRef<?ScrollViewInterface>(null);
   const scrollKey = 'scene-' + scene.ptr;
 
-  const persistedPanelStateId = scene.getName();
+  const persistedScrollId = scene.getName();
 
   const onScroll = usePersistedScrollPosition({
     project,
     scrollViewRef,
     scrollKey,
-    persistedPanelStateId,
-    persistedPanelStateType: 'scene',
-  });
-  const {
-    isSectionFolded,
-    setSectionFolded,
-    toggleSectionFolded,
-  } = usePersistedCollapsedSection({
-    project,
-    persistedPanelStateId,
-    persistedPanelStateType: 'scene',
+    persistedScrollId,
+    persistedScrollType: 'scene',
   });
 
   // Variable refactoring: snapshot on mount, apply on unmount/scene change.
@@ -193,8 +188,8 @@ export const CompactScenePropertiesEditor = ({
           </ColumnStackLayout>
           <TopLevelCollapsibleSection
             title={<Trans>Properties</Trans>}
-            isFolded={isSectionFolded('properties')}
-            toggleFolded={() => toggleSectionFolded('properties')}
+            isFolded={isPropertiesFolded}
+            toggleFolded={() => setIsPropertiesFolded(!isPropertiesFolded)}
             renderContent={() => (
               <ColumnStackLayout noMargin noOverflowParent>
                 <CompactPropertiesEditorByVisibility
@@ -214,8 +209,8 @@ export const CompactScenePropertiesEditor = ({
           {allVisibleBehaviors.length > 0 && (
             <TopLevelCollapsibleSection
               title={<Trans>Behaviors</Trans>}
-              isFolded={isSectionFolded('behaviors')}
-              toggleFolded={() => toggleSectionFolded('behaviors')}
+              isFolded={isBehaviorsFolded}
+              toggleFolded={() => setIsBehaviorsFolded(!isBehaviorsFolded)}
               renderContent={() => (
                 <ColumnStackLayout noMargin>
                   {allVisibleBehaviors.map(behaviorSharedData => {
@@ -276,14 +271,14 @@ export const CompactScenePropertiesEditor = ({
           )}
           <TopLevelCollapsibleSection
             title={<Trans>Scene Variables</Trans>}
-            isFolded={isSectionFolded('variables')}
-            toggleFolded={() => toggleSectionFolded('variables')}
+            isFolded={isVariablesFolded}
+            toggleFolded={() => setIsVariablesFolded(!isVariablesFolded)}
             onOpenFullEditor={() => openSceneVariables()}
             onAdd={() => {
               if (variablesListRef.current) {
                 variablesListRef.current.addVariable();
               }
-              setSectionFolded('variables', false);
+              setIsVariablesFolded(false);
             }}
             renderContentAsHiddenWhenFolded={
               true /* Allows to keep a ref to the variables list for add button to work. */

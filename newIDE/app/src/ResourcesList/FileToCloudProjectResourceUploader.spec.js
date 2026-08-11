@@ -35,7 +35,7 @@ describe('FileToCloudProjectResourceUploader', () => {
       `"file"`
     );
     expect(getInputAcceptedMimesAndExtensions('spine')).toMatchInlineSnapshot(
-      `"file"`
+      `"application/json,.json"`
     );
   });
 });

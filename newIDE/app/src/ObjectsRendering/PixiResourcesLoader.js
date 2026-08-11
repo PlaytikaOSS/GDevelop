@@ -874,14 +874,12 @@ export default class PixiResourcesLoader {
     resourceName: string,
     {
       useTransparentTexture,
-      forceBasicMaterial,
     }: {|
       useTransparentTexture: boolean,
-      forceBasicMaterial: boolean,
     |}
   ): // $FlowFixMe[value-as-type]
   Promise<THREE.Material> {
-    const cacheKey = `${resourceName}|transparent:${useTransparentTexture.toString()}|basic:${forceBasicMaterial.toString()}`;
+    const cacheKey = `${resourceName}|transparent:${useTransparentTexture.toString()}`;
     const loadedOrLoadingPromise = loadedOrLoadingThreeMaterials[cacheKey];
     // $FlowFixMe[constant-condition]
     if (loadedOrLoadingPromise) return loadedOrLoadingPromise;
@@ -890,20 +888,12 @@ export default class PixiResourcesLoader {
       project,
       resourceName
     ).then(texture => {
-      const material = forceBasicMaterial
-        ? new THREE.MeshBasicMaterial({
-            map: texture,
-            side: useTransparentTexture ? THREE.DoubleSide : THREE.FrontSide,
-            transparent: useTransparentTexture,
-            vertexColors: true,
-          })
-        : new THREE.MeshStandardMaterial({
-            map: texture,
-            side: useTransparentTexture ? THREE.DoubleSide : THREE.FrontSide,
-            transparent: useTransparentTexture,
-            metalness: 0,
-            vertexColors: true,
-          });
+      const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        side: useTransparentTexture ? THREE.DoubleSide : THREE.FrontSide,
+        transparent: useTransparentTexture,
+        vertexColors: true,
+      });
 
       return material;
     }));

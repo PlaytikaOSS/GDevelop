@@ -28,11 +28,8 @@
 #include "GDCore/Extensions/PlatformExtension.h"
 #include "GDCore/IDE/AbstractFileSystem.h"
 #include "GDCore/IDE/CaptureOptions.h"
-#include "GDCore/IDE/Events/ArbitraryEventsWorker.h"
-#include "GDCore/IDE/Events/EventsPersistentUuidHelper.h"
 #include "GDCore/IDE/Events/UsedExtensionsFinder.h"
 #include "GDCore/IDE/ExportedDependencyResolver.h"
-#include "GDCore/IDE/ProjectBrowserHelper.h"
 #include "GDCore/IDE/Project/ProjectResourcesCopier.h"
 #include "GDCore/IDE/Project/ResourcesMergingHelper.h"
 #include "GDCore/IDE/Project/SceneResourcesFinder.h"
@@ -69,7 +66,6 @@ double LogTimeSpent(const gd::String &name, double previousTime) {
                 "ms");
   return GetTimeNow();
 }
-
 }  // namespace
 
 namespace gdjs {
@@ -132,14 +128,6 @@ bool ExporterHelper::ExportProjectForPixiPreview(
   std::vector<gd::String> resourcesFiles;
 
   std::vector<gd::InGameEditorResourceMetadata> inGameEditorResources;
-
-  // Ensure live events have UUIDs before codegen clones them (a clone only
-  // inherits ids the source already had - see CopyPersistentUuids). Safety
-  // net for entry points that skip the IDE's own call (in-game edition).
-  if (options.cdpDebuggerEnabled) {
-    gd::EventsPersistentUuidHelper::EnsureProjectEventsPersistentUuids(
-        options.project);
-  }
 
   // TODO Try to remove side effects to avoid the copy
   // that destroys the AST in cache.
@@ -284,15 +272,12 @@ bool ExporterHelper::ExportProjectForPixiPreview(
         options.project.GetWholeProjectDiagnosticReport();
     wholeProjectDiagnosticReport.Clear();
 
-    // Generate events code. Breakpoint instrumentation is only useful when a
-    // CDP debugger will actually be attached (local Electron preview) - web
-    // previews would otherwise ship dead `checkBreakpoint`/`debugger;` code.
+    // Generate events code
     if (!ExportScenesEventsCode(immutableProject,
                           codeOutputDir,
                           includesFiles,
                           wholeProjectDiagnosticReport,
-                          true,
-                          options.cdpDebuggerEnabled)) {
+                          true)) {
       return false;
     }
     previousTime = LogTimeSpent("Events code export", previousTime);
@@ -390,10 +375,6 @@ void ExporterHelper::SerializeRuntimeGameOptions(
     gd::SerializerElement &runtimeGameOptions) {
   // Create the setup options passed to the gdjs.RuntimeGame
   runtimeGameOptions.AddChild("isPreview").SetBoolValue(true);
-  // Tells the runtime a CDP debugger is attached so `debugger;` statements
-  // are live (local Electron preview only).
-  runtimeGameOptions.AddChild("cdpDebuggerEnabled")
-      .SetBoolValue(options.cdpDebuggerEnabled);
 
   auto &initialRuntimeGameStatus =
       runtimeGameOptions.AddChild("initialRuntimeGameStatus");
@@ -440,10 +421,6 @@ void ExporterHelper::SerializeRuntimeGameOptions(
   if (!options.inGameEditorSettingsJson.empty()) {
     runtimeGameOptions.AddChild("inGameEditorSettings") =
         gd::Serializer::FromJSON(options.inGameEditorSettingsJson);
-  }
-  if (!options.initialBreakpointsJson.empty()) {
-    runtimeGameOptions.AddChild("initialBreakpoints") =
-        gd::Serializer::FromJSON(options.initialBreakpointsJson);
   }
 
   runtimeGameOptions.AddChild("shouldReloadLibraries")
@@ -1204,7 +1181,6 @@ void ExporterHelper::AddLibsInclude(bool pixiRenderers,
   InsertUnique(includesFiles, "timer.js");
   InsertUnique(includesFiles, "runtimewatermark.js");
   InsertUnique(includesFiles, "runtimegame.js");
-  InsertUnique(includesFiles, "breakpointDebugSupport.js");
   InsertUnique(includesFiles, "variable.js");
   InsertUnique(includesFiles, "variablescontainer.js");
   InsertUnique(includesFiles, "oncetriggers.js");
@@ -1249,10 +1225,6 @@ void ExporterHelper::AddLibsInclude(bool pixiRenderers,
     InsertUnique(includesFiles, "debugger-client/hot-reloader.js");
     InsertUnique(includesFiles, "debugger-client/abstract-debugger-client.js");
     InsertUnique(includesFiles, "debugger-client/InGameDebugger.js");
-    // Gameplay tests can only be run when a debugger client is included
-    // (i.e: during previews), as the test scripts are sent over the
-    // debugger connection.
-    InsertUnique(includesFiles, "gameplay-tests/gameplay-test-runner.js");
   }
   if (includeWebsocketDebuggerClient) {
     InsertUnique(includesFiles, "debugger-client/websocket-debugger-client.js");
@@ -1357,8 +1329,7 @@ bool ExporterHelper::ExportScenesEventsCode(
     gd::String outputDir,
     std::vector<gd::String> &includesFiles,
     gd::WholeProjectDiagnosticReport &wholeProjectDiagnosticReport,
-    bool exportForPreview,
-    bool generateBreakpointInstrumentation) {
+    bool exportForPreview) {
   fs.MkDir(outputDir);
 
   for (std::size_t i = 0; i < project.GetLayoutsCount(); ++i) {
@@ -1371,8 +1342,7 @@ bool ExporterHelper::ExportScenesEventsCode(
             layout.GetName());
     LayoutCodeGenerator layoutCodeGenerator(project);
     gd::String eventsOutput = layoutCodeGenerator.GenerateLayoutCompleteCode(
-        layout, eventsIncludes, diagnosticReport, !exportForPreview,
-        generateBreakpointInstrumentation);
+        layout, eventsIncludes, diagnosticReport, !exportForPreview);
     gd::String filename =
         outputDir + "/" + "code" + gd::String::From(i) + ".js";
 

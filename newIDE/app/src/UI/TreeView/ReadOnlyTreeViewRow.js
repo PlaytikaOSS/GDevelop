@@ -22,25 +22,15 @@ type Props<Item> = {|
   data: ItemData<Item>,
   /** Used by react-window. */
   isScrolling?: boolean,
-  /** True when the row is displayed as a sticky copy of an actual row. */
-  isSticky?: boolean,
 |};
 
 const TreeViewRow = <Item: ItemBaseAttributes>(
   props: Props<Item>
 ): React.Node => {
-  const { data, index, style, isSticky } = props;
-  const {
-    flattenedData,
-    onOpen,
-    onClick,
-    onSelect,
-    getItemHtmlId,
-    isMobile,
-  } = data;
+  const { data, index, style } = props;
+  const { flattenedData, onOpen, onClick, onSelect, getItemHtmlId } = data;
   const node = flattenedData[index];
-  // Slightly reduce the indentation on mobile, as horizontal space is scarce.
-  const left = node.depth * (isMobile ? 12 : 16);
+  const left = node.depth * 16;
   const containerRef = React.useRef<?HTMLDivElement>(null);
 
   const onClickItem = React.useCallback(
@@ -51,15 +41,13 @@ const TreeViewRow = <Item: ItemBaseAttributes>(
         (node.item.isRoot || node.item.openWithSingleClick) &&
         !node.disableCollapse
       ) {
-        // A sticky row does not collapse on click: the click reveals the
-        // actual row instead (handled by the sticky rows container).
-        if (!isSticky) onOpen(node, index);
+        onOpen(node, index);
         return;
       }
       onSelect({ node, exclusive: !(event.metaKey || event.ctrlKey) });
       onClick(node);
     },
-    [onClick, onSelect, node, onOpen, index, isSticky]
+    [onClick, onSelect, node, onOpen, index]
   );
 
   const onDoubleClickItem = React.useCallback(
@@ -95,16 +83,11 @@ const TreeViewRow = <Item: ItemBaseAttributes>(
       <div
         style={{ paddingLeft: left }}
         className={classNames(classes.fullHeightFlexContainer, {
-          [classes.withDivider]: node.item.isRoot && index > 0 && !isSticky,
+          [classes.withDivider]: node.item.isRoot && index > 0,
         })}
       >
         <div
-          id={
-            // Do not duplicate the id on the sticky copy of a row.
-            getItemHtmlId && !isSticky
-              ? getItemHtmlId(node.item, index)
-              : undefined
-          }
+          id={getItemHtmlId ? getItemHtmlId(node.item, index) : undefined}
           onClick={onClickItem}
           onDoubleClick={onDoubleClickItem}
           className={classNames(classes.rowContainer, {

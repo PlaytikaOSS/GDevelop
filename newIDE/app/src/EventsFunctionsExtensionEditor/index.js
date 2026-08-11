@@ -6,7 +6,6 @@ import { type I18n as I18nType } from '@lingui/core';
 
 import * as React from 'react';
 import EventsSheet, { type EventsSheetInterface } from '../EventsSheet';
-import { type GameplayTestsCallbacks } from '../GameplayTests/GameplayTestRunner';
 import EditorMosaic, {
   type EditorMosaicInterface,
   type EditorMosaicNode,
@@ -107,7 +106,6 @@ type Props = {|
   onEventBasedObjectTypeChanged: () => void,
   onWillInstallExtension: (extensionNames: Array<string>) => void,
   onExtensionInstalled: (extensionNames: Array<string>) => void,
-  gameplayTestsCallbacks: GameplayTestsCallbacks,
 |};
 
 type State = {|
@@ -840,50 +838,6 @@ export default class EventsFunctionsExtensionEditor extends React.Component<
     }
   };
 
-  // Gameplay tests: delegate to the MainFrame-provided callbacks, bound to
-  // this extension (its name is the tests "scope").
-  _onOpenGameplayTest = (testName: string) => {
-    this.props.gameplayTestsCallbacks.onOpenGameplayTest(
-      {
-        type: 'extension',
-        extensionName: this.props.eventsFunctionsExtension.getName(),
-      },
-      testName
-    );
-  };
-
-  _onRenameGameplayTest = (oldName: string, newName: string) => {
-    this.props.gameplayTestsCallbacks.onRenameGameplayTest(
-      {
-        type: 'extension',
-        extensionName: this.props.eventsFunctionsExtension.getName(),
-      },
-      oldName,
-      newName
-    );
-    if (this.eventsFunctionList) this.eventsFunctionList.forceUpdateList();
-  };
-
-  _onDeleteGameplayTest = (test: gdTest) => {
-    this.props.gameplayTestsCallbacks.onDeleteGameplayTest(
-      {
-        type: 'extension',
-        extensionName: this.props.eventsFunctionsExtension.getName(),
-      },
-      test
-    );
-  };
-
-  _onRunGameplayTest = (testName: string) => {
-    this.props.gameplayTestsCallbacks.onRunGameplayTest(
-      {
-        type: 'extension',
-        extensionName: this.props.eventsFunctionsExtension.getName(),
-      },
-      testName
-    );
-  };
-
   _onEventsBasedObjectPasted = (
     eventsBasedObject: gdEventsBasedObject,
     sourceExtensionName: string,
@@ -1430,20 +1384,6 @@ export default class EventsFunctionsExtensionEditor extends React.Component<
     const selectedEventsBasedEntity =
       selectedEventsBasedBehavior || selectedEventsBasedObject;
 
-    const isLifecycleEventsFunction =
-      !!selectedEventsFunction &&
-      (selectedEventsBasedBehavior
-        ? gd.MetadataDeclarationHelper.isBehaviorLifecycleEventsFunction(
-            selectedEventsFunction.getName()
-          )
-        : selectedEventsBasedObject
-        ? gd.MetadataDeclarationHelper.isObjectLifecycleEventsFunction(
-            selectedEventsFunction.getName()
-          )
-        : gd.MetadataDeclarationHelper.isExtensionLifecycleEventsFunction(
-            selectedEventsFunction.getName()
-          ));
-
     const editors: {
       [string]: Editor,
     } = {
@@ -1638,15 +1578,9 @@ export default class EventsFunctionsExtensionEditor extends React.Component<
                 }
                 onWillInstallExtension={this.props.onWillInstallExtension}
                 onExtensionInstalled={this.props.onExtensionInstalled}
-                editEventsFunctionParameter={
-                  isLifecycleEventsFunction
-                    ? null
-                    : this._editEventsFunctionParameter
-                }
+                editEventsFunctionParameter={this._editEventsFunctionParameter}
                 openEventsBasedEntityPropertyEditorDialog={
-                  selectedEventsBasedEntity
-                    ? this._openEventsBasedEntityPropertyEditorDialog
-                    : null
+                  this._openEventsBasedEntityPropertyEditorDialog
                 }
               />
             </Background>
@@ -1815,11 +1749,6 @@ export default class EventsFunctionsExtensionEditor extends React.Component<
                 onEventsBasedObjectRenamed={this._onEventsBasedObjectRenamed}
                 onEventsBasedObjectPasted={this._onEventsBasedObjectPasted}
                 onAddEventsBasedObject={this._onAddEventsBasedObject}
-                // Gameplay tests
-                onOpenGameplayTest={this._onOpenGameplayTest}
-                onRenameGameplayTest={this._onRenameGameplayTest}
-                onDeleteGameplayTest={this._onDeleteGameplayTest}
-                onRunGameplayTest={this._onRunGameplayTest}
                 onSelectExtensionProperties={() => this._editOptions(true)}
                 onSelectExtensionGlobalVariables={() =>
                   this._openVariableEditorDialog({

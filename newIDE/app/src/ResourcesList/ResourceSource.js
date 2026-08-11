@@ -101,8 +101,8 @@ export const allResourceKindsAndMetadata = [
   },
   {
     kind: 'spine',
-    displayName: (t`Spine skeleton`: any),
-    fileExtensions: ['json', 'skel'],
+    displayName: (t`Spine Json`: any),
+    fileExtensions: ['json'],
     createNewResource: (): gdSpineResource => {
       return new gd.SpineResource();
     },

@@ -28,7 +28,7 @@ import { TreeViewRightPrimaryButton } from './TreeViewRightPrimaryButton';
 const stopPropagation = e => e.stopPropagation();
 
 const DELAY_BEFORE_OPENING_FOLDER_ON_DRAG_HOVER = 800;
-const DELAY_BEFORE_OPENING_CONTEXT_MENU_ON_MOBILE = 600;
+const DELAY_BEFORE_OPENING_CONTEXT_MENU_ON_MOBILE = 1000;
 export const TREE_VIEW_ROW_HEIGHT = 32;
 const COLLAPSABLE_LINE_SIDE_DROP_ZONE_HEIGHT = 6;
 
@@ -129,14 +129,12 @@ type Props<Item> = {|
   data: ItemData<Item>,
   /** Used by react-window. */
   isScrolling?: boolean,
-  /** True when the row is displayed as a sticky copy of an actual row. */
-  isSticky?: boolean,
 |};
 
 const TreeViewRow = <Item: ItemBaseAttributes>(
   props: Props<Item>
 ): React.Node => {
-  const { data, index, style, isSticky } = props;
+  const { data, index, style } = props;
   const {
     flattenedData,
     onOpen,
@@ -156,8 +154,7 @@ const TreeViewRow = <Item: ItemBaseAttributes>(
     shouldSelectUponContextMenuOpening,
   } = data;
   const node = flattenedData[index];
-  // Slightly reduce the indentation on mobile, as horizontal space is scarce.
-  const left = node.depth * (isMobile ? 12 : 16);
+  const left = node.depth * 16;
   const forceUpdate = useForceUpdate();
   const isStayingOverRef = React.useRef<boolean>(false);
   const openWhenOverTimeoutId = React.useRef<?TimeoutID>(null);
@@ -197,15 +194,13 @@ const TreeViewRow = <Item: ItemBaseAttributes>(
     event => {
       if (!node || node.item.isPlaceholder) return;
       if (node.item.isRoot) {
-        // A sticky root row does not collapse on click: the click reveals the
-        // actual row instead (handled by the sticky rows container).
-        if (!isSticky) onOpen(node);
+        onOpen(node);
         return;
       }
       onSelect({ node, exclusive: !(event.metaKey || event.ctrlKey) });
       onClick(node);
     },
-    [onClick, onSelect, node, onOpen, isSticky]
+    [onClick, onSelect, node, onOpen]
   );
 
   const onDoubleClickItem = React.useCallback(
@@ -316,8 +311,7 @@ const TreeViewRow = <Item: ItemBaseAttributes>(
           return {};
         }}
         canDrag={() =>
-          // Prevent dragging of sticky copies, root folder or placeholder.
-          !isSticky &&
+          // Prevent dragging of root folder or placeholder.
           !node.item.isRoot &&
           !node.item.isPlaceholder &&
           // Prevent dragging of item whose name is edited, allowing to select text with click and drag on text.
@@ -426,9 +420,7 @@ const TreeViewRow = <Item: ItemBaseAttributes>(
                   <ListIcon iconSize={20} src={node.thumbnailSrc} />
                 </div>
               ) : null}
-              {renamedItemId === node.id &&
-              !isSticky &&
-              typeof node.name === 'string' ? (
+              {renamedItemId === node.id && typeof node.name === 'string' ? (
                 <SemiControlledRowInput
                   initialValue={node.name}
                   onEndRenaming={endRenaming}
@@ -585,12 +577,7 @@ const TreeViewRow = <Item: ItemBaseAttributes>(
 
           const dropTarget = connectDropTarget(
             <div
-              id={
-                // Do not duplicate the id on the sticky copy of a row.
-                getItemHtmlId && !isSticky
-                  ? getItemHtmlId(node.item, index)
-                  : undefined
-              }
+              id={getItemHtmlId ? getItemHtmlId(node.item, index) : undefined}
               onClick={onClickItem}
               onDoubleClick={onDoubleClickItem}
               className={classNames(
@@ -612,8 +599,7 @@ const TreeViewRow = <Item: ItemBaseAttributes>(
             <div
               style={{ paddingLeft: left }}
               className={classNames(classes.fullHeightFlexContainer, {
-                [classes.withDivider]:
-                  node.item.isRoot && index > 0 && !isSticky,
+                [classes.withDivider]: node.item.isRoot && index > 0,
               })}
             >
               {dropTarget}
