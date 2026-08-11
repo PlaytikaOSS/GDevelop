@@ -113,6 +113,8 @@ declare class libGDevelop {
   CustomObjectConfiguration: Class<gdCustomObjectConfiguration>;
   Layout: Class<gdLayout>;
   ExternalEvents: Class<gdExternalEvents>;
+  Test: Class<gdTest>;
+  TestsContainer: Class<gdTestsContainer>;
   ExternalLayout: Class<gdExternalLayout>;
   Effect: Class<gdEffect>;
   EffectsContainer: Class<gdEffectsContainer>;
@@ -203,6 +205,7 @@ declare class libGDevelop {
   UnfilledRequiredBehaviorPropertyProblem: Class<gdUnfilledRequiredBehaviorPropertyProblem>;
   VectorUnfilledRequiredBehaviorPropertyProblem: Class<gdVectorUnfilledRequiredBehaviorPropertyProblem>;
   ProjectBrowserHelper: Class<gdProjectBrowserHelper>;
+  EventsPersistentUuidHelper: Class<gdEventsPersistentUuidHelper>;
   ResourceExposer: Class<gdResourceExposer>;
   VariablesChangeset: Class<gdVariablesChangeset>;
   WholeProjectRefactorer: Class<gdWholeProjectRefactorer>;
