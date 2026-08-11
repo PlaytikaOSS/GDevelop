@@ -30,7 +30,6 @@ type Props = {|
   onAddEvent: (eventType: string) => Array<gdBaseEvent>,
   onToggleInvertedCondition: () => void,
   onToggleDisabledEvent: () => void,
-  onToggleBreakpoint: () => void,
   canToggleEventDisabled: boolean,
   canToggleInstructionInverted: boolean,
   onRemove: () => void,
@@ -58,7 +57,6 @@ const Toolbar: React.ComponentType<Props> = React.memo<Props>(function Toolbar({
   onAddEvent,
   onToggleInvertedCondition,
   onToggleDisabledEvent,
-  onToggleBreakpoint,
   canToggleEventDisabled,
   canToggleInstructionInverted,
   onRemove,
@@ -89,7 +87,6 @@ const Toolbar: React.ComponentType<Props> = React.memo<Props>(function Toolbar({
         allEventsMetadata={allEventsMetadata}
         onToggleInvertedCondition={onToggleInvertedCondition}
         onToggleDisabledEvent={onToggleDisabledEvent}
-        onToggleBreakpoint={onToggleBreakpoint}
         canToggleEventDisabled={canToggleEventDisabled}
         canToggleInstructionInverted={canToggleInstructionInverted}
         onRemove={onRemove}

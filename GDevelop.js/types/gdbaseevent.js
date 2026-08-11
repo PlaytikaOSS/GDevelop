@@ -20,8 +20,6 @@ declare class gdBaseEvent extends gdBaseEvent {
   unserializeFrom(project: gdProject, element: gdSerializerElement): void;
   getAiGeneratedEventId(): string;
   setAiGeneratedEventId(aiGeneratedEventId: string): void;
-  getOrCreatePersistentUuid(): string;
-  getPersistentUuid(): string;
   delete(): void;
   ptr: number;
 };

@@ -17,7 +17,6 @@ type Props = {|
   onAddEvent: (eventType: string) => Array<gdBaseEvent>,
   onToggleInvertedCondition: () => void,
   onToggleDisabledEvent: () => void,
-  onToggleBreakpoint: () => void,
   canToggleEventDisabled: boolean,
   canToggleInstructionInverted: boolean,
   onRemove: () => void,
@@ -54,10 +53,6 @@ const ToolbarCommands = (props: Props): null => {
 
   useCommand('TOGGLE_EVENT_DISABLED', props.canToggleEventDisabled, {
     handler: props.onToggleDisabledEvent,
-  });
-
-  useCommand('TOGGLE_BREAKPOINT', true, {
-    handler: props.onToggleBreakpoint,
   });
 
   useCommand('TOGGLE_CONDITION_INVERTED', props.canToggleInstructionInverted, {
