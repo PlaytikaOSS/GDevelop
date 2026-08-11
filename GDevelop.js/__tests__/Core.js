@@ -99,6 +99,36 @@ describe('libGD.js', function () {
       expect(project.hasExternalEventsNamed('My events')).toBe(false);
     });
 
+    it('handles tests', function () {
+      const tests = project.getTests();
+      expect(tests.hasTestNamed('My test')).toBe(false);
+
+      const test = tests.insertNewTest('My test', 0);
+      expect(tests.hasTestNamed('My test')).toBe(true);
+      expect(tests.getTestsCount()).toBe(1);
+      expect(test.getName()).toBe('My test');
+      expect(test.getType()).toBe('gameplay');
+      test.setDescription('My description');
+      test.setSource("await harness.goToScene('Scene');");
+      expect(tests.getTest('My test').getDescription()).toBe('My description');
+      expect(tests.getTestAt(0).getSource()).toBe(
+        "await harness.goToScene('Scene');"
+      );
+      expect(test.getLastRunStatus()).toBe('');
+      test.setLastRunStatus('passed');
+      test.setLastRunAt(1769700000000);
+      test.setLastRunDurationMs(5400);
+      test.setLastRunFramesExecuted(320);
+      expect(test.getLastRunStatus()).toBe('passed');
+      expect(test.getLastRunAt()).toBe(1769700000000);
+      expect(test.getLastRunDurationMs()).toBe(5400);
+      expect(test.getLastRunFramesExecuted()).toBe(320);
+
+      tests.removeTest('My test');
+      expect(tests.hasTestNamed('My test')).toBe(false);
+      expect(tests.getTestsCount()).toBe(0);
+    });
+
     it('handles external layouts', function () {
       expect(project.hasExternalLayoutNamed('My layout')).toBe(false);
 
@@ -3824,6 +3854,32 @@ describe('libGD.js', function () {
 
       project.delete();
       fs.delete();
+    });
+  });
+
+  describe('gd.EventsPersistentUuidHelper', function () {
+    it('assigns missing persistent UUIDs, keeping the existing ones', function () {
+      const list = new gd.EventsList();
+      const parentEvent = list.insertEvent(new gd.StandardEvent(), 0);
+      const subEvent = parentEvent
+        .getSubEvents()
+        .insertEvent(new gd.StandardEvent(), 0);
+      const parentEventUuid = parentEvent.getOrCreatePersistentUuid();
+      expect(subEvent.getPersistentUuid()).toBe('');
+
+      expect(gd.EventsPersistentUuidHelper.ensurePersistentUuids(list)).toBe(
+        true
+      );
+
+      expect(parentEvent.getPersistentUuid()).toBe(parentEventUuid);
+      expect(subEvent.getPersistentUuid()).not.toBe('');
+
+      // Nothing left to assign on a second pass.
+      expect(gd.EventsPersistentUuidHelper.ensurePersistentUuids(list)).toBe(
+        false
+      );
+
+      list.delete();
     });
   });
 

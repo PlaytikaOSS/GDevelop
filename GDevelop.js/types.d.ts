@@ -644,6 +644,7 @@ export class Project extends EmscriptenObject {
   insertNewExternalEvents(name: string, position: number): ExternalEvents;
   removeExternalEvents(name: string): void;
   getExternalEventsPosition(name: string): number;
+  getTests(): TestsContainer;
   hasExternalLayoutNamed(name: string): boolean;
   getExternalLayout(name: string): ExternalLayout;
   getExternalLayoutAt(index: number): ExternalLayout;
@@ -911,6 +912,41 @@ export class ExternalEvents extends EmscriptenObject {
   getEvents(): EventsList;
   serializeTo(element: SerializerElement): void;
   unserializeFrom(project: Project, element: SerializerElement): void;
+}
+
+export class Test extends EmscriptenObject {
+  constructor();
+  setName(name: string): void;
+  getName(): string;
+  setType(type: string): void;
+  getType(): string;
+  setDescription(description: string): void;
+  getDescription(): string;
+  setSource(source: string): void;
+  getSource(): string;
+  setLastRunStatus(lastRunStatus: string): void;
+  getLastRunStatus(): string;
+  setLastRunAt(lastRunAt: number): void;
+  getLastRunAt(): number;
+  setLastRunDurationMs(lastRunDurationMs: number): void;
+  getLastRunDurationMs(): number;
+  setLastRunFramesExecuted(lastRunFramesExecuted: number): void;
+  getLastRunFramesExecuted(): number;
+  serializeTo(element: SerializerElement): void;
+  unserializeFrom(element: SerializerElement): void;
+}
+
+export class TestsContainer extends EmscriptenObject {
+  insertNewTest(name: string, pos: number): Test;
+  insertTest(test: Test, pos: number): Test;
+  hasTestNamed(name: string): boolean;
+  getTest(name: string): Test;
+  getTestAt(pos: number): Test;
+  removeTest(name: string): void;
+  clearTests(): void;
+  moveTest(oldIndex: number, newIndex: number): void;
+  getTestsCount(): number;
+  getTestPosition(test: Test): number;
 }
 
 export class ExternalLayout extends EmscriptenObject {
@@ -1959,6 +1995,8 @@ export class BaseEvent extends EmscriptenObject {
   unserializeFrom(project: Project, element: SerializerElement): void;
   getAiGeneratedEventId(): string;
   setAiGeneratedEventId(aiGeneratedEventId: string): void;
+  getOrCreatePersistentUuid(): string;
+  getPersistentUuid(): string;
 }
 
 export class StandardEvent extends BaseEvent {
@@ -2122,6 +2160,12 @@ export class ProjectBrowserHelper extends EmscriptenObject {
   static exposeProjectEventsWithoutExtensions(project: Project, worker: ReadOnlyArbitraryEventsWorkerWithContext): void;
   static exposeProjectObjects(project: Project, worker: ArbitraryObjectsWorker): void;
   static exposeEventsFunctionsExtensionEvents(project: Project, eventsFunctionsExtension: EventsFunctionsExtension, worker: ReadOnlyArbitraryEventsWorkerWithContext): void;
+}
+
+export class EventsPersistentUuidHelper extends EmscriptenObject {
+  static ensureProjectEventsPersistentUuids(project: Project): boolean;
+  static ensurePersistentUuids(events: EventsList): boolean;
+  static resetPersistentUuids(events: EventsList): void;
 }
 
 export class ResourceExposer extends EmscriptenObject {
@@ -2729,6 +2773,7 @@ export class EventsFunctionsExtension extends EmscriptenObject {
   getSceneVariables(): VariablesContainer;
   getEventsBasedBehaviors(): EventsBasedBehaviorsList;
   getEventsBasedObjects(): EventsBasedObjectsList;
+  getTests(): TestsContainer;
   serializeTo(element: SerializerElement): void;
   serializeToExternal(element: SerializerElement): void;
   unserializeFrom(project: Project, element: SerializerElement): void;
@@ -3224,7 +3269,7 @@ export class ParticleEmitterObject extends ObjectConfiguration {
 
 export class LayoutCodeGenerator extends EmscriptenObject {
   constructor(project: Project);
-  generateLayoutCompleteCode(layout: Layout, includes: SetString, diagnosticReport: DiagnosticReport, compilationForRuntime: boolean): string;
+  generateLayoutCompleteCode(layout: Layout, includes: SetString, diagnosticReport: DiagnosticReport, compilationForRuntime: boolean, generateBreakpointInstrumentation: boolean): string;
 }
 
 export class BehaviorCodeGenerator extends EmscriptenObject {
@@ -3240,7 +3285,7 @@ export class BehaviorCodeGenerator extends EmscriptenObject {
 
 export class ObjectCodeGenerator extends EmscriptenObject {
   constructor(project: Project);
-  generateRuntimeObjectCompleteCode(eventsFunctionsExtension: EventsFunctionsExtension, eventsBasedObject: EventsBasedObject, codeNamespace: string, objectMethodMangledNames: MapStringString, includes: SetString, compilationForRuntime: boolean): string;
+  generateRuntimeObjectCompleteCode(eventsFunctionsExtension: EventsFunctionsExtension, eventsBasedObject: EventsBasedObject, codeNamespace: string, objectMethodMangledNames: MapStringString, includes: SetString, compilationForRuntime: boolean, generateBreakpointInstrumentation: boolean): string;
   static getObjectPropertyGetterName(propertyName: string): string;
   static getObjectPropertySetterName(propertyName: string): string;
   static getObjectPropertyToggleFunctionName(propertyName: string): string;
@@ -3248,7 +3293,7 @@ export class ObjectCodeGenerator extends EmscriptenObject {
 
 export class EventsFunctionsExtensionCodeGenerator extends EmscriptenObject {
   constructor(project: Project);
-  generateFreeEventsFunctionCompleteCode(extension: EventsFunctionsExtension, eventsFunction: EventsFunction, codeNamespac: string, includes: SetString, compilationForRuntime: boolean): string;
+  generateFreeEventsFunctionCompleteCode(extension: EventsFunctionsExtension, eventsFunction: EventsFunction, codeNamespac: string, includes: SetString, compilationForRuntime: boolean, generateBreakpointInstrumentation: boolean): string;
 }
 
 export class PreviewExportOptions extends EmscriptenObject {
@@ -3272,7 +3317,9 @@ export class PreviewExportOptions extends EmscriptenObject {
   setFullLoadingScreen(enable: boolean): PreviewExportOptions;
   setIsDevelopmentEnvironment(enable: boolean): PreviewExportOptions;
   setIsInGameEdition(enable: boolean): PreviewExportOptions;
+  setCdpDebuggerEnabled(enable: boolean): PreviewExportOptions;
   setInGameEditorSettingsJson(inGameEditorSettingsJson: string): PreviewExportOptions;
+  setInitialBreakpointsJson(initialBreakpointsJson: string): PreviewExportOptions;
   setEditorId(editorId: string): PreviewExportOptions;
   setEditorCameraState3D(cameraMode: string, positionX: number, positionY: number, positionZ: number, rotationAngle: number, elevationAngle: number, distance: number): PreviewExportOptions;
   setNonRuntimeScriptsCacheBurst(value: number): PreviewExportOptions;
@@ -3338,11 +3385,13 @@ export class MetadataDeclarationHelper extends EmscriptenObject {
   generateFreeFunctionMetadata(project: Project, extension: PlatformExtension, eventsFunctionsExtension: EventsFunctionsExtension, eventsFunction: EventsFunction): AbstractFunctionMetadata;
   static generateBehaviorMetadata(project: Project, extension: PlatformExtension, eventsFunctionsExtension: EventsFunctionsExtension, eventsBasedBehavior: EventsBasedBehavior, behaviorMethodMangledNames: MapStringString): BehaviorMetadata;
   static generateObjectMetadata(project: Project, extension: PlatformExtension, eventsFunctionsExtension: EventsFunctionsExtension, eventsBasedObject: EventsBasedObject, objectMethodMangledNames: MapStringString): ObjectMetadata;
+  static getSceneCodeNamespace(sceneName: string): string;
   static getExtensionCodeNamespacePrefix(eventsFunctionsExtension: EventsFunctionsExtension): string;
   static getFreeFunctionCodeName(eventsFunctionsExtension: EventsFunctionsExtension, eventsFunction: EventsFunction): string;
   static getFreeFunctionCodeNamespace(eventsFunction: EventsFunction, codeNamespacePrefix: string): string;
   static getBehaviorFunctionCodeNamespace(eventsBasedBehavior: EventsBasedBehavior, codeNamespacePrefix: string): string;
   static getObjectFunctionCodeNamespace(eventsBasedObject: EventsBasedObject, codeNamespacePrefix: string): string;
+  static getObjectEventsFunctionFullyQualifiedContextName(eventsBasedObject: EventsBasedObject, eventsFunction: EventsFunction, codeNamespacePrefix: string): string;
   static isBehaviorLifecycleEventsFunction(functionName: string): boolean;
   static isObjectLifecycleEventsFunction(functionName: string): boolean;
   static isExtensionLifecycleEventsFunction(functionName: string): boolean;

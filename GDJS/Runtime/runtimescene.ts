@@ -421,6 +421,10 @@ namespace gdjs {
         this._profiler.begin('events');
       }
       if (this._eventsFunction !== null) this._eventsFunction(this);
+
+      // Let the breakpoint manager wrap up stepping for this frame (preview only).
+      const breakpointManager = this._runtimeGame._breakpointManager;
+      if (breakpointManager) breakpointManager.onFrameEnd(this.getName());
       if (this._profiler) {
         this._profiler.end('events');
       }
@@ -478,9 +482,11 @@ namespace gdjs {
       if (this._debugDrawEnabled) {
         this._debuggerRenderer.renderDebugDraw(
           this.getAdhocListOfAllInstances(),
+          this._debugDrawShowHitBoxes,
           this._debugDrawShowHiddenInstances,
           this._debugDrawShowPointsNames,
-          this._debugDrawShowCustomPoints
+          this._debugDrawShowCustomPoints,
+          this._debugDrawHooks
         );
       }
 

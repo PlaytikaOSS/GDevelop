@@ -10,6 +10,7 @@ import {
   enumerateExternalEvents,
   enumerateExternalLayouts,
   enumerateEventsFunctionsExtensions,
+  enumerateGameplayTests,
 } from '../ProjectManager/EnumerateProjectItems';
 import { type FileMetadata } from '../ProjectsStorage';
 
@@ -17,7 +18,8 @@ type Item =
   | gdLayout
   | gdExternalEvents
   | gdExternalLayout
-  | gdEventsFunctionsExtension;
+  | gdEventsFunctionsExtension
+  | gdTest;
 
 /**
  * Helper function to generate options list
@@ -66,11 +68,16 @@ type CommandHandlers = {|
   onOpenExternalEvents: string => void,
   onOpenExternalLayout: string => void,
   onOpenEventsFunctionsExtension: string => void,
+  onOpenGameplayTest: string => void,
+  onRunGameplayTest: string => void | Promise<void>,
+  onRunAllGameplayTests: () => void | Promise<void>,
   onOpenCommandPalette: () => void,
   onOpenProfile: () => void,
   onRestartInGameEditor: (reason: string) => void,
   onOpenGlobalSearch: () => void,
   onOpenMemoryTrackerRegistry: () => void,
+  onTogglePauseExecution: () => void,
+  onStepNextEvent: () => void,
   onImportExtension: () => Promise<void>,
   canInstallCliInPath: boolean,
   onInstallCliInPath: () => void | Promise<void>,
@@ -223,6 +230,38 @@ const useMainFrameCommands = (handlers: CommandHandlers) => {
     ),
   });
 
+  const gameplayTestCommandsEnabled = !!handlers.project;
+  useCommandWithOptions('OPEN_GAMEPLAY_TEST', gameplayTestCommandsEnabled, {
+    generateOptions: React.useCallback(
+      () =>
+        generateProjectItemOptions(
+          handlers.project,
+          enumerateGameplayTests,
+          handlers.onOpenGameplayTest
+        ),
+      [handlers.project, handlers.onOpenGameplayTest]
+    ),
+  });
+
+  const { onRunGameplayTest } = handlers;
+  useCommandWithOptions('RUN_GAMEPLAY_TEST', gameplayTestCommandsEnabled, {
+    generateOptions: React.useCallback(
+      () =>
+        generateProjectItemOptions(
+          handlers.project,
+          enumerateGameplayTests,
+          (testName: string) => {
+            onRunGameplayTest(testName);
+          }
+        ),
+      [handlers.project, onRunGameplayTest]
+    ),
+  });
+
+  useCommand('RUN_ALL_GAMEPLAY_TESTS', gameplayTestCommandsEnabled, {
+    handler: handlers.onRunAllGameplayTests,
+  });
+
   useCommandWithOptions('OPEN_EXTERNAL_LAYOUT', !!handlers.project, {
     generateOptions: React.useCallback(
       () =>
@@ -245,6 +284,14 @@ const useMainFrameCommands = (handlers: CommandHandlers) => {
         ),
       [handlers.project, handlers.onOpenEventsFunctionsExtension]
     ),
+  });
+
+  useCommand('TOGGLE_PAUSE_EXECUTION', handlers.hasPreviewsRunning, {
+    handler: handlers.onTogglePauseExecution,
+  });
+
+  useCommand('STEP_NEXT_EVENT', handlers.hasPreviewsRunning, {
+    handler: handlers.onStepNextEvent,
   });
 };
 

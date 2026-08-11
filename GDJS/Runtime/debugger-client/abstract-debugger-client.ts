@@ -1,6 +1,33 @@
 namespace gdjs {
   const logger = new gdjs.Logger('Debugger client');
 
+  /**
+   * `Map` doesn't serialize to JSON natively; convert it to a string-keyed
+   * plain object so it survives `JSON.stringify`. Shared by both dump builders.
+   */
+  export const convertMapToPlainObjectForJson = (
+    value: Map<unknown, unknown>
+  ): { [key: string]: unknown } => {
+    const obj: { [key: string]: unknown } = {};
+    value.forEach((v, k) => {
+      obj[String(k)] = v;
+    });
+    return obj;
+  };
+
+  /** The only debugger commands processed while a gameplay test is running:
+   * read-only inspection and the gameplay test commands themselves. Every
+   * other command is ignored (fail closed: a command added later cannot
+   * accidentally mutate the game state or stepping the harness owns). */
+  const DEBUGGER_COMMANDS_ALLOWED_DURING_GAMEPLAY_TESTS = new Set([
+    'refresh',
+    'getStatus',
+    'profiler.start',
+    'profiler.stop',
+    'gameplayTest.run',
+    'gameplayTest.stop',
+  ]);
+
   const originalConsole = {
     log: console.log,
     info: console.info,
@@ -246,11 +273,37 @@ namespace gdjs {
         return;
       }
 
+      // While a gameplay test runs, the harness owns the game stepping and
+      // state: only read-only and gameplay test commands are processed (an
+      // unpause would make the main loop step in parallel, a hot-reload
+      // would reset instances mid-test).
+      if (
+        gdjs.gameplayTests &&
+        gdjs.gameplayTests.isGameplayTestRunning() &&
+        !DEBUGGER_COMMANDS_ALLOWED_DURING_GAMEPLAY_TESTS.has(data.command)
+      ) {
+        logger.warn(
+          `Ignored debugger command "${data.command}" while a gameplay test is running.`
+        );
+        this._sendMessage(
+          circularSafeStringify({
+            command: 'commandIgnored',
+            payload: {
+              ignoredCommand: data.command,
+              reason: 'gameplay-test-running',
+            },
+          })
+        );
+        return;
+      }
+
       try {
         if (data.command === 'play') {
           runtimeGame.pause(false);
+          that.sendRuntimeGameStatus();
         } else if (data.command === 'pause') {
           runtimeGame.pause(true);
+          that.sendRuntimeGameStatus();
           that.sendRuntimeGameDump();
         } else if (data.command === 'refresh') {
           that.sendRuntimeGameDump();
@@ -485,6 +538,37 @@ namespace gdjs {
           if (inGameEditor) {
             this.sendSelectionAABB(data.messageId);
           }
+        } else if (data.command === 'gameplayTest.run') {
+          if (gdjs.gameplayTests) {
+            gdjs.gameplayTests
+              .runGameplayTest(runtimeGame, data.payload, (frame) => {
+                that.sendGameplayTestProgress(data.messageId, frame);
+              })
+              .then((result) => {
+                that.sendGameplayTestResult(data.messageId, result);
+              })
+              .catch((error) => {
+                // `runGameplayTest` is not supposed to throw - this is a
+                // safety net so the editor always gets an answer.
+                that.sendGameplayTestResult(data.messageId, {
+                  testName: (data.payload && data.payload.testName) || '',
+                  status: 'error',
+                  errors: ['Unexpected error while running the test: ' + error],
+                });
+              });
+          } else {
+            this.sendGameplayTestResult(data.messageId, {
+              testName: (data.payload && data.payload.testName) || '',
+              status: 'error',
+              errors: [
+                'Gameplay tests are not included in this preview - relaunch the preview from the editor.',
+              ],
+            });
+          }
+        } else if (data.command === 'gameplayTest.stop') {
+          if (gdjs.gameplayTests) {
+            gdjs.gameplayTests.stopCurrentGameplayTest();
+          }
         } else if (data.command === 'hardReload') {
           // This usually means that the preview was modified so much that an entire reload
           // is needed, or that the runtime itself could have been modified.
@@ -684,7 +768,12 @@ namespace gdjs {
      */
     sendRuntimeGameDump(): void {
       const that = this;
-      const message = { command: 'dump', payload: this._runtimegame };
+
+      const activeLocalVariables = gdjs.collectActiveLocalVariables();
+      const message: any = { command: 'dump', payload: this._runtimegame };
+      if (Object.keys(activeLocalVariables).length > 0) {
+        message.activeLocalVariables = activeLocalVariables;
+      }
       const serializationStartTime = Date.now();
 
       // Stringify the message, excluding some known data that are big and/or not
@@ -733,6 +822,9 @@ namespace gdjs {
             excludedKeys.indexOf(key) !== -1
           ) {
             return '[Removed from the debugger]';
+          }
+          if (value instanceof Map) {
+            return gdjs.convertMapToPlainObjectForJson(value);
           }
           return value;
         },
@@ -930,6 +1022,32 @@ namespace gdjs {
       );
     }
 
+    /**
+     * Send a progress update about the gameplay test being run.
+     */
+    sendGameplayTestProgress(messageId: number, frame: number): void {
+      this._sendMessage(
+        circularSafeStringify({
+          command: 'gameplayTest.progress',
+          messageId,
+          payload: { frame },
+        })
+      );
+    }
+
+    /**
+     * Send the result of a gameplay test run.
+     */
+    sendGameplayTestResult(messageId: number, result: Object): void {
+      this._sendMessage(
+        circularSafeStringify({
+          command: 'gameplayTest.result',
+          messageId,
+          payload: result,
+        })
+      );
+    }
+
     sendSelectionAABB(messageId: number): void {
       const inGameEditor = this._runtimegame.getInGameEditor();
       if (!inGameEditor) {
@@ -982,7 +1100,7 @@ namespace gdjs {
      * @param stats Other measures done during the profiler run.
      */
     sendProfilerOutput(
-      framesAverageMeasures: FrameMeasure,
+      framesAverageMeasures: FrameMeasureOutput,
       stats: ProfilerStats
     ): void {
       this._sendMessage(
