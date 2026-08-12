@@ -1,14 +1,13 @@
 // @flow
 import { fakeAssetShortHeader1 } from '../fixtures/GDevelopServicesTestData';
+import { PixiResourcesLoaderMock } from '../fixtures/TestPixiResourcesLoader';
 import { makeTestExtensions } from '../fixtures/TestExtensions';
 import {
   editorFunctions,
   noEventsInSceneText,
   type EditorFunctionGenericOutput,
-  type ResourceSearchAndInstallOptions,
-  type ResourceSearchAndInstallResult,
+  type LaunchFunctionOptionsWithProject,
 } from './index';
-import { makeFakeLaunchFunctionOptionsWithProject } from './TestHelpers';
 
 const gd: libGDevelop = global.gd;
 
@@ -34,7 +33,84 @@ const fakeParticleEmitterAssetShortHeader = {
   animationsCount: undefined,
 };
 
+// $FlowFixMe[incompatible-type]
+// $FlowFixMe[missing-local-annot]
+// $FlowFixMe[cannot-resolve-name]
+const makeFakeI18n = (fakeI18n): I18nType => ({
+  ...fakeI18n,
+  _: message => message.id,
+});
+
 describe('editorFunctions', () => {
+  const makeFakeLaunchFunctionOptionsWithProject = (
+    project: gdProject
+  ): LaunchFunctionOptionsWithProject => ({
+    project,
+    args: {},
+    i18n: makeFakeI18n(),
+    editorCallbacks: {
+      onOpenLayout: jest.fn(),
+      onCreateProject: jest.fn(),
+    },
+    relatedAiRequestId: 'fake-ai-request-id',
+    getRelatedAiRequestLastMessages: () => ({
+      lastUserMessage: null,
+      lastAssistantMessages: [],
+    }),
+    generateEvents: jest.fn(),
+    onInstancesModifiedOutsideEditor: jest.fn(),
+    onObjectGroupsModifiedOutsideEditor: jest.fn(),
+    onSceneEventsModifiedOutsideEditor: jest.fn(),
+    onProjectItemRenamedOutsideEditor: jest.fn(),
+    toolOptions: {
+      includeEventsJson: true,
+    },
+    ensureExtensionInstalled: jest.fn(),
+    searchAndInstallAsset: async ({
+      objectsContainer,
+      objectName,
+      objectType,
+    }) => {
+      const fakeFoundObjectType = objectType || 'Sprite';
+      const isTheFirstOfItsTypeInProject = !gd.UsedObjectTypeFinder.scanProject(
+        project,
+        fakeFoundObjectType
+      );
+      const object = objectsContainer.insertNewObject(
+        project,
+        fakeFoundObjectType,
+        objectName,
+        objectsContainer.getObjectsCount()
+      );
+
+      return Promise.resolve({
+        status: 'asset-installed',
+        message: 'Object installed',
+        createdObjects: [object],
+        assetShortHeader: fakeAssetShortHeader1,
+        isTheFirstOfItsTypeInProject,
+      });
+    },
+    searchAndInstallResources: async () => {
+      return Promise.resolve({
+        results: [
+          {
+            resourceName: 'fake-resource-name',
+            resourceKind: 'fake-resource-kind',
+            status: 'resource-installed',
+          },
+        ],
+      });
+    },
+    onObjectsModifiedOutsideEditor: jest.fn(),
+    onWillDeleteScene: jest.fn(),
+    onWillDeleteObject: jest.fn(),
+    onWillInstallExtension: jest.fn(),
+    onExtensionInstalled: jest.fn(),
+    getAssetStoreTagForNewObject: () => null,
+    PixiResourcesLoader: PixiResourcesLoaderMock,
+  });
+
   describe('create_or_replace_object', () => {
     let project: gdProject;
     let testScene: gdLayout;
@@ -82,7 +158,7 @@ describe('editorFunctions', () => {
       );
 
       expect(result.message).toMatchInlineSnapshot(
-        `"Created object \\"MyNewTextObject\\" (type \\"TextObject::Text\\", scene \\"TestScene\\") from scratch. Properties: bold: false, characterSize: 20 (px), color: 0;0;0 (color), isOutlineEnabled: false, isShadowEnabled: false, italic: false, lineHeight: 0 (px), outlineColor: 255;255;255 (color), outlineThickness: 2 (px), shadowAngle: 90 (deg), shadowBlurRadius: 2 (px), shadowColor: 0;0;0 (color), shadowDistance: 4 (px), shadowOpacity: 127 (px), text: Text (multilinestring), textAlignment: left (choice, one of: [\\"left\\", \\"center\\", \\"right\\"]), verticalTextAlignment: top (choice, one of: [\\"top\\", \\"center\\", \\"bottom\\"]). Empty: font (resource — the default font is used)."`
+        `"Created object \\"MyNewTextObject\\" (type \\"TextObject::Text\\", scene \\"TestScene\\") from scratch. Properties: bold: false, characterSize: 20 (px), color: 0;0;0 (color), isOutlineEnabled: false, isShadowEnabled: false, italic: false, lineHeight: 0 (px), outlineColor: 255;255;255 (color), outlineThickness: 2 (px), shadowAngle: 90 (deg), shadowBlurRadius: 2 (px), shadowColor: 0;0;0 (color), shadowDistance: 4 (px), shadowOpacity: 127 (px), text: Text (multilinestring), textAlignment: left (choice, one of: [\\"left\\", \\"center\\", \\"right\\"]), verticalTextAlignment: top (choice, one of: [\\"top\\", \\"center\\", \\"bottom\\"]). Empty: font (resource)."`
       );
       expect(result.success).toBe(true);
       expect(onObjectsModifiedOutsideEditor).toHaveBeenCalledWith({
@@ -109,7 +185,7 @@ describe('editorFunctions', () => {
       );
 
       expect(result.message).toMatchInlineSnapshot(
-        `"Created object \\"MyNewTextObject\\" (type \\"TextObject::Text\\", scene \\"TestScene\\") from asset store. Used asset \\"Dino Doux\\" (6 animation(s)). Properties: bold: false, characterSize: 20 (px), color: 0;0;0 (color), isOutlineEnabled: false, isShadowEnabled: false, italic: false, lineHeight: 0 (px), outlineColor: 255;255;255 (color), outlineThickness: 2 (px), shadowAngle: 90 (deg), shadowBlurRadius: 2 (px), shadowColor: 0;0;0 (color), shadowDistance: 4 (px), shadowOpacity: 127 (px), text: Text (multilinestring), textAlignment: left (choice, one of: [\\"left\\", \\"center\\", \\"right\\"]), verticalTextAlignment: top (choice, one of: [\\"top\\", \\"center\\", \\"bottom\\"]). Empty: font (resource — the default font is used)."`
+        `"Created object \\"MyNewTextObject\\" (type \\"TextObject::Text\\", scene \\"TestScene\\") from asset store. Used asset \\"Dino Doux\\" (6 animation(s)). Properties: bold: false, characterSize: 20 (px), color: 0;0;0 (color), isOutlineEnabled: false, isShadowEnabled: false, italic: false, lineHeight: 0 (px), outlineColor: 255;255;255 (color), outlineThickness: 2 (px), shadowAngle: 90 (deg), shadowBlurRadius: 2 (px), shadowColor: 0;0;0 (color), shadowDistance: 4 (px), shadowOpacity: 127 (px), text: Text (multilinestring), textAlignment: left (choice, one of: [\\"left\\", \\"center\\", \\"right\\"]), verticalTextAlignment: top (choice, one of: [\\"top\\", \\"center\\", \\"bottom\\"]). Empty: font (resource)."`
       );
       expect(result.success).toBe(true);
       expect(onObjectsModifiedOutsideEditor).toHaveBeenCalledWith({
@@ -260,7 +336,7 @@ describe('editorFunctions', () => {
       );
 
       expect(result.message).toMatchInlineSnapshot(
-        `"Created object \\"MyNewTextObject\\" (type \\"TextObject::Text\\", scene \\"TestScene\\") from scratch. Properties: bold: false, characterSize: 20 (px), color: 0;0;0 (color), isOutlineEnabled: false, isShadowEnabled: false, italic: false, lineHeight: 0 (px), outlineColor: 255;255;255 (color), outlineThickness: 2 (px), shadowAngle: 90 (deg), shadowBlurRadius: 2 (px), shadowColor: 0;0;0 (color), shadowDistance: 4 (px), shadowOpacity: 127 (px), text: Text (multilinestring), textAlignment: left (choice, one of: [\\"left\\", \\"center\\", \\"right\\"]), verticalTextAlignment: top (choice, one of: [\\"top\\", \\"center\\", \\"bottom\\"]). Empty: font (resource — the default font is used)."`
+        `"Created object \\"MyNewTextObject\\" (type \\"TextObject::Text\\", scene \\"TestScene\\") from scratch. Properties: bold: false, characterSize: 20 (px), color: 0;0;0 (color), isOutlineEnabled: false, isShadowEnabled: false, italic: false, lineHeight: 0 (px), outlineColor: 255;255;255 (color), outlineThickness: 2 (px), shadowAngle: 90 (deg), shadowBlurRadius: 2 (px), shadowColor: 0;0;0 (color), shadowDistance: 4 (px), shadowOpacity: 127 (px), text: Text (multilinestring), textAlignment: left (choice, one of: [\\"left\\", \\"center\\", \\"right\\"]), verticalTextAlignment: top (choice, one of: [\\"top\\", \\"center\\", \\"bottom\\"]). Empty: font (resource)."`
       );
       expect(result.success).toBe(true);
       expect(onObjectsModifiedOutsideEditor).toHaveBeenCalledWith({
@@ -876,22 +952,7 @@ describe('editorFunctions', () => {
       expect(fontProperty.getValue()).toBe('font2.ttf');
     });
 
-    it('installs a font from the free library when set to a new font name', async () => {
-      const searchAndInstallResources = jest.fn(
-        async ({
-          resources,
-        }: ResourceSearchAndInstallOptions): Promise<ResourceSearchAndInstallResult> => ({
-          results: resources.map(({ resourceName, resourceKind }) => {
-            const newResource = new gd.FontResource();
-            newResource.setName(resourceName);
-            newResource.setFile('installed-from-library.ttf');
-            project.getResourcesManager().addResource(newResource);
-            newResource.delete();
-            return { resourceName, resourceKind, status: 'resource-installed' };
-          }),
-        })
-      );
-
+    it('fails when changing a resource property to a non-existing resource', async () => {
       const result: EditorFunctionGenericOutput = await editorFunctions.change_object_property.launchFunction(
         {
           ...makeFakeLaunchFunctionOptionsWithProject(project),
@@ -905,71 +966,13 @@ describe('editorFunctions', () => {
               },
             ],
           },
-          searchAndInstallResources,
-        }
-      );
-
-      expect(searchAndInstallResources).toHaveBeenCalledWith({
-        resources: [
-          { resourceName: 'non-existing-font.ttf', resourceKind: 'font' },
-        ],
-      });
-      expect(result.success).toBe(true);
-      expect(result.message).toMatchInlineSnapshot(`
-        "Done.
-        Installed font resource \\"non-existing-font.ttf\\" from the free library.
-        Set \\"font\\" on \\"MyTextObject\\" = \\"non-existing-font.ttf\\"."
-      `);
-      expect(result.newlyAddedResources).toEqual([
-        {
-          resourceName: 'non-existing-font.ttf',
-          resourceKind: 'font',
-          status: 'resource-installed',
-        },
-      ]);
-
-      const textObject = testScene.getObjects().getObject('MyTextObject');
-      const fontProperty = textObject
-        .getConfiguration()
-        .getProperties()
-        .get('font');
-      expect(fontProperty.getValue()).toBe('non-existing-font.ttf');
-    });
-
-    it('fails when no font matching the new font name is found in the free library', async () => {
-      const searchAndInstallResources = jest.fn(
-        async ({
-          resources,
-        }: ResourceSearchAndInstallOptions): Promise<ResourceSearchAndInstallResult> => ({
-          results: resources.map(({ resourceName, resourceKind }) => ({
-            resourceName,
-            resourceKind,
-            status: 'nothing-found',
-          })),
-        })
-      );
-
-      const result: EditorFunctionGenericOutput = await editorFunctions.change_object_property.launchFunction(
-        {
-          ...makeFakeLaunchFunctionOptionsWithProject(project),
-          args: {
-            scene_name: 'TestScene',
-            object_name: 'MyTextObject',
-            changed_properties: [
-              {
-                property_name: 'font',
-                new_value: 'non-existing-font.ttf',
-              },
-            ],
-          },
-          searchAndInstallResources,
         }
       );
 
       expect(result.success).toBe(false);
       expect(result.message).toMatchInlineSnapshot(`
-        "Nothing changed. Issues:
-        No font matching \\"non-existing-font.ttf\\" found in the free library — the property was NOT changed. An empty \\"font\\" value is valid (the default font is used). Retry with a more descriptive name if needed."
+        "No changes. Issues:
+        \\"font\\" on \\"MyTextObject\\" -> \\"non-existing-font.ttf\\": resource \\"non-existing-font.ttf\\" does not exist. New resources cannot be added just by name; use \`create_or_replace_object\` to import assets from the asset store (preserving properties/behaviors/events)."
       `);
 
       // Verify the property was NOT changed (still the original value)
@@ -979,35 +982,6 @@ describe('editorFunctions', () => {
         .getProperties()
         .get('font');
       expect(fontProperty.getValue()).toBe('font1.ttf');
-    });
-
-    it('suggests close existing resources instead of installing when the new value looks like one', async () => {
-      // $FlowFixMe[underconstrained-implicit-instantiation]
-      const searchAndInstallResources = jest.fn();
-
-      const result: EditorFunctionGenericOutput = await editorFunctions.change_object_property.launchFunction(
-        {
-          ...makeFakeLaunchFunctionOptionsWithProject(project),
-          args: {
-            scene_name: 'TestScene',
-            object_name: 'MyTextObject',
-            changed_properties: [
-              {
-                property_name: 'font',
-                new_value: 'assets/font2.ttf',
-              },
-            ],
-          },
-          searchAndInstallResources,
-        }
-      );
-
-      expect(searchAndInstallResources).not.toHaveBeenCalled();
-      expect(result.success).toBe(false);
-      expect(result.message).toMatchInlineSnapshot(`
-        "Nothing changed. Issues:
-        \\"font\\" on \\"MyTextObject\\" -> \\"assets/font2.ttf\\": resource \\"assets/font2.ttf\\" does not exist. Did you mean: \\"font2.ttf\\"? To install a new font from the free library instead, retry with a more specific name."
-      `);
     });
 
     it('fails when changing a resource property to one with a different type', async () => {
@@ -1029,7 +1003,7 @@ describe('editorFunctions', () => {
 
       expect(result.success).toBe(false);
       expect(result.message).toMatchInlineSnapshot(`
-        "Nothing changed. Issues:
+        "No changes. Issues:
         \\"font\\" on \\"MyTextObject\\" -> \\"audio1.aac\\": resource \\"audio1.aac\\" has kind \\"audio\\" but expected \\"font\\"."
       `);
 
@@ -1861,103 +1835,6 @@ describe('editorFunctions', () => {
         newOrChangedAiGeneratedEventIds: new Set(['test-ai-event-id']),
       });
     });
-
-    it('warns about resources not found in the free library', async () => {
-      // $FlowFixMe[underconstrained-implicit-instantiation]
-      const searchAndInstallResources = jest.fn().mockResolvedValue({
-        results: [
-          {
-            resourceName: 'explosion.wav',
-            resourceKind: 'audio',
-            status: 'resource-installed',
-          },
-          {
-            resourceName: 'epic-boss-theme.mp3',
-            resourceKind: 'audio',
-            status: 'nothing-found',
-          },
-        ],
-      });
-      // $FlowFixMe[underconstrained-implicit-instantiation]
-      const ensureExtensionInstalled = jest.fn().mockResolvedValue(undefined);
-
-      const result = await editorFunctions.add_scene_events.launchFunction({
-        ...makeFakeLaunchFunctionOptionsWithProject(project),
-        args: {
-          scene_name: 'TestScene',
-          events_description:
-            'When the player presses space, play an explosion sound and the boss music',
-          extension_names_list: '',
-          objects_list: 'Player',
-        },
-        // $FlowFixMe[underconstrained-implicit-instantiation]
-        generateEvents: jest.fn().mockResolvedValue({
-          generationCompleted: true,
-          aiGeneratedEvent: {
-            id: 'test-ai-event-id',
-            createdAt: '2024-01-01T00:00:00Z',
-            updatedAt: '2024-01-01T00:00:00Z',
-            userId: 'test-user',
-            status: 'ready',
-            partialGameProjectJson: '{}',
-            eventsDescription:
-              'When the player presses space, play an explosion sound and the boss music',
-            extensionNamesList: '',
-            objectsList: 'Player',
-            existingEventsAsText: '',
-            existingEventsJson: null,
-            existingEventsJsonUserRelativeKey: null,
-            resultMessage: 'Successfully added sound events.',
-            changes: [
-              {
-                operationName: 'insert_at_end',
-                operationTargetEvent: null,
-                isEventsJsonValid: true,
-                generatedEvents: JSON.stringify([
-                  {
-                    type: 'BuiltinCommonInstructions::Standard',
-                    conditions: [],
-                    actions: [],
-                  },
-                ]),
-                areEventsValid: true,
-                extensionNames: [],
-                diagnosticLines: [],
-                undeclaredVariables: [],
-                undeclaredObjectVariables: {},
-                missingObjectBehaviors: {},
-                missingResources: [
-                  { resourceName: 'explosion.wav', resourceKind: 'audio' },
-                  {
-                    resourceName: 'epic-boss-theme.mp3',
-                    resourceKind: 'audio',
-                  },
-                ],
-              },
-            ],
-            error: null,
-            stats: null,
-          },
-        }),
-        onSceneEventsModifiedOutsideEditor: jest.fn(),
-        ensureExtensionInstalled,
-        searchAndInstallResources,
-      });
-
-      expect(result.success).toBe(true);
-      expect(result.message).toMatchInlineSnapshot(`
-        "Successfully added sound events.
-
-        Warning: no resource matching \\"epic-boss-theme.mp3\\" found in the free library. The action(s) referencing them will do nothing (e.g. no sound will play). Rework the event(s) with a different descriptive file name if needed."
-      `);
-      expect(result.newlyAddedResources).toEqual([
-        {
-          resourceName: 'explosion.wav',
-          resourceKind: 'audio',
-          status: 'resource-installed',
-        },
-      ]);
-    });
   });
 
   describe('add_or_edit_variable', () => {
@@ -2565,38 +2442,10 @@ describe('editorFunctions', () => {
       expect(result.message).not.toEqual(
         expect.stringContaining('(DegreeAngle)')
       );
-      // Empty properties (here: `font`) are grouped at the end, and the empty
-      // font is flagged as valid so it does not get blamed for unrelated bugs.
+      // Empty properties (here: `font`) are grouped at the end.
       expect(result.message).toEqual(
-        expect.stringContaining(
-          'Empty: font (resource — the default font is used).'
-        )
+        expect.stringContaining('Empty: font (resource).')
       );
-    });
-
-    it('flags an empty font as valid in the inspected properties', async () => {
-      const result = await editorFunctions.inspect_object_properties.launchFunction(
-        {
-          ...makeFakeLaunchFunctionOptionsWithProject(project),
-          args: { scene_name: 'TestScene', object_name: 'MyText' },
-        }
-      );
-
-      expect(result.success).toBe(true);
-      const fontProperty = (result.properties || []).find(
-        property => property.name === 'font'
-      );
-      if (!fontProperty) throw new Error('Expected a "font" property.');
-      expect(fontProperty.hint).toBe(
-        'An empty font is valid: the default font is used.'
-      );
-
-      // A property with a value gets no hint.
-      const textProperty = (result.properties || []).find(
-        property => property.name === 'text'
-      );
-      if (!textProperty) throw new Error('Expected a "text" property.');
-      expect(textProperty.hint).toBeUndefined();
     });
   });
 
@@ -2995,125 +2844,14 @@ describe('editorFunctions', () => {
       });
 
       expect(moveResult.message).toEqual(
-        expect.stringContaining('Repositioned 1 instance of "Player"')
+        expect.stringContaining('Repositioned 1 instance')
       );
       expect(getInstancePositions(testScene)).toEqual([{ x: 300, y: 400 }]);
     });
 
-    // Seen in production: a call passing another object's instance id (with
-    // object_name "Background" but the Player's id) silently moved and hid the
-    // Player. Ids not belonging to object_name must fail without any change.
-    it('fails without modifying anything when existing_instance_ids belong to another object', async () => {
-      await putInstances({
-        brush_kind: 'point',
-        brush_position: '100,200',
-        new_instances_count: 1,
-      });
-      const [created] = getInstances(testScene);
-      testScene.getObjects().insertNewObject(project, 'Sprite', 'Enemy', 1);
-
-      const result = await editorFunctions.put_2d_instances.launchFunction({
-        ...makeFakeLaunchFunctionOptionsWithProject(project),
-        args: {
-          scene_name: 'TestScene',
-          object_name: 'Enemy',
-          layer_name: '',
-          brush_kind: 'point',
-          brush_position: '0,0',
-          existing_instance_ids: created.uuid,
-          instances_opacity: 0,
-        },
-      });
-
-      expect(result.success).toBe(false);
-      expect(result.message).toEqual(
-        expect.stringContaining('do not belong to object "Enemy"')
-      );
-      expect(result.message).toEqual(
-        expect.stringContaining('instance of "Player"')
-      );
-      expect(getInstancePositions(testScene)).toEqual([{ x: 100, y: 200 }]);
-    });
-
-    // The layer move must stay after the wrong-ids guard: valid-id instances
-    // found before the offending id must not already be on the target layer
-    // when the call fails.
-    it('does not move valid-id instances to the target layer when another id fails the call', async () => {
-      testScene.getLayers().insertNewLayer('UI', 1);
-      await putInstances({
-        brush_kind: 'point',
-        brush_position: '100,200',
-        new_instances_count: 1,
-      });
-      const [player] = getInstances(testScene);
-      testScene.getObjects().insertNewObject(project, 'Sprite', 'Enemy', 1);
-      await putInstances({
-        object_name: 'Enemy',
-        brush_kind: 'point',
-        brush_position: '300,300',
-        new_instances_count: 1,
-      });
-      const enemies = getInstances(testScene).filter(
-        instance => instance.uuid !== player.uuid
-      );
-      expect(enemies).toHaveLength(1);
-
-      const result = await editorFunctions.put_2d_instances.launchFunction({
-        ...makeFakeLaunchFunctionOptionsWithProject(project),
-        args: {
-          scene_name: 'TestScene',
-          object_name: 'Player',
-          layer_name: 'UI',
-          brush_kind: 'point',
-          brush_position: '100,200',
-          existing_instance_ids: `${player.uuid},${enemies[0].uuid}`,
-        },
-      });
-
-      expect(result.success).toBe(false);
-      expect(result.message).toEqual(
-        expect.stringContaining('do not belong to object "Player"')
-      );
-      const playersAfter = getInstances(testScene).filter(
-        instance => instance.uuid === player.uuid
-      );
-      expect(playersAfter).toHaveLength(1);
-      expect(playersAfter[0].layer).toBe('');
-    });
-
-    it('fails without erasing anything when existing_instance_ids belong to another object', async () => {
-      await putInstances({
-        brush_kind: 'point',
-        brush_position: '100,200',
-        new_instances_count: 1,
-      });
-      const [created] = getInstances(testScene);
-      testScene.getObjects().insertNewObject(project, 'Sprite', 'Enemy', 1);
-
-      const result = await editorFunctions.put_2d_instances.launchFunction({
-        ...makeFakeLaunchFunctionOptionsWithProject(project),
-        args: {
-          scene_name: 'TestScene',
-          object_name: 'Enemy',
-          layer_name: '',
-          brush_kind: 'erase',
-          existing_instance_ids: created.uuid,
-        },
-      });
-
-      expect(result.success).toBe(false);
-      expect(result.message).toEqual(
-        expect.stringContaining('do not belong to object "Enemy"')
-      );
-      expect(getInstancePositions(testScene)).toEqual([{ x: 100, y: 200 }]);
-    });
-
     // A position passed with the none brush would be silently ignored, which
     // agents misread as a move failure: the call must fail explicitly.
-    // "none" + `brush_position` + `existing_instance_ids` is contradictory but
-    // unambiguous (move THOSE instances there), and it is what agents write:
-    // read it as the "point" brush instead of failing the whole script.
-    it('moves the instances when a brush_position is passed with the none brush', async () => {
+    it('fails when a brush_position is passed with the none brush', async () => {
       await putInstances({
         brush_kind: 'point',
         brush_position: '100,200',
@@ -3134,9 +2872,11 @@ describe('editorFunctions', () => {
         },
       });
 
-      expect(result.success).toBe(true);
-      // The instance moved, and no new one was created.
-      expect(getInstancePositions(testScene)).toEqual([{ x: 640, y: 360 }]);
+      expect(result.success).toBe(false);
+      expect(result.message).toEqual(
+        expect.stringContaining('never moves instances')
+      );
+      expect(getInstancePositions(testScene)).toEqual([{ x: 100, y: 200 }]);
     });
 
     // Editing an existing instance with the none brush and no brush_position
@@ -3225,14 +2965,10 @@ describe('editorFunctions', () => {
       expect(result.message).toEqual(expect.stringContaining('Resized 1'));
       expect(result.message).toEqual(expect.stringContaining('Rotated 1'));
       expect(result.message).toEqual(
-        expect.stringContaining(
-          'Changed opacity of 1 instance of "Player" to 128/255'
-        )
+        expect.stringContaining('Changed opacity of 1 instance to 128/255')
       );
       expect(result.message).toEqual(
-        expect.stringContaining(
-          'Changed Z-order of 1 instance of "Player" to 7'
-        )
+        expect.stringContaining('Changed Z-order of 1 instance to 7')
       );
     });
 
@@ -3254,34 +2990,6 @@ describe('editorFunctions', () => {
         expect.stringContaining('Erased 1 instance')
       );
       expect(getInstances(testScene)).toHaveLength(1);
-    });
-
-    // Regression test: an id-targeted erase that also carried a brush_position
-    // used to erase everything the brush matched too — wiping a co-located
-    // duplicate along with the one instance singled out by id.
-    it('erases only the id-targeted instance even when the brush matches a co-located duplicate', async () => {
-      await putInstances({
-        brush_kind: 'point',
-        brush_position: '100,200',
-        new_instances_count: 2,
-      });
-      const instances = getInstances(testScene);
-      expect(instances).toHaveLength(2);
-
-      const result = await putInstances({
-        brush_kind: 'erase',
-        brush_position: '100,200',
-        existing_instance_ids: instances[0].uuid,
-      });
-
-      expect(result.message).toEqual(
-        expect.stringContaining(
-          `Erased 1 instance (id: ${instances[0].uuid.slice(0, 10)})`
-        )
-      );
-      const remaining = getInstances(testScene);
-      expect(remaining).toHaveLength(1);
-      expect(remaining[0].uuid).toBe(instances[1].uuid);
     });
 
     it('erases an instance at an exact position (brush_size 0)', async () => {
@@ -3560,84 +3268,6 @@ describe('editorFunctions', () => {
       ]);
     });
 
-    // Same guard as put_2d_instances: ids of another object's instances must
-    // fail without any change instead of silently editing the wrong object.
-    it('fails without modifying anything when existing_instance_ids belong to another object', async () => {
-      await putInstances({
-        brush_kind: 'point',
-        brush_position: '10,20,30',
-        new_instances_count: 1,
-      });
-      const [created] = getInstances(testScene);
-      testScene.getObjects().insertNewObject(project, 'Sprite', 'Enemy', 1);
-
-      const result = await editorFunctions.put_3d_instances.launchFunction({
-        ...makeFakeLaunchFunctionOptionsWithProject(project),
-        args: {
-          scene_name: 'TestScene',
-          object_name: 'Enemy',
-          layer_name: '',
-          brush_kind: 'point',
-          brush_position: '0,0,0',
-          existing_instance_ids: created.uuid,
-        },
-      });
-
-      expect(result.success).toBe(false);
-      expect(result.message).toEqual(
-        expect.stringContaining('do not belong to object "Enemy"')
-      );
-      expect(getInstancePositions(testScene)).toEqual([
-        { x: 10, y: 20, z: 30 },
-      ]);
-    });
-
-    // The layer move must stay after the wrong-ids guard: valid-id instances
-    // found before the offending id must not already be on the target layer
-    // when the call fails.
-    it('does not move valid-id instances to the target layer when another id fails the call', async () => {
-      testScene.getLayers().insertNewLayer('UI', 1);
-      await putInstances({
-        brush_kind: 'point',
-        brush_position: '10,20,30',
-        new_instances_count: 1,
-      });
-      const [player] = getInstances(testScene);
-      testScene.getObjects().insertNewObject(project, 'Sprite', 'Enemy', 1);
-      await putInstances({
-        object_name: 'Enemy',
-        brush_kind: 'point',
-        brush_position: '300,300,0',
-        new_instances_count: 1,
-      });
-      const enemies = getInstances(testScene).filter(
-        instance => instance.uuid !== player.uuid
-      );
-      expect(enemies).toHaveLength(1);
-
-      const result = await editorFunctions.put_3d_instances.launchFunction({
-        ...makeFakeLaunchFunctionOptionsWithProject(project),
-        args: {
-          scene_name: 'TestScene',
-          object_name: 'Player',
-          layer_name: 'UI',
-          brush_kind: 'point',
-          brush_position: '10,20,30',
-          existing_instance_ids: `${player.uuid},${enemies[0].uuid}`,
-        },
-      });
-
-      expect(result.success).toBe(false);
-      expect(result.message).toEqual(
-        expect.stringContaining('do not belong to object "Player"')
-      );
-      const playersAfter = getInstances(testScene).filter(
-        instance => instance.uuid === player.uuid
-      );
-      expect(playersAfter).toHaveLength(1);
-      expect(playersAfter[0].layer).toBe('');
-    });
-
     it('distributes instances evenly along a 3D line brush', async () => {
       await putInstances({
         brush_kind: 'line',
@@ -3776,8 +3406,9 @@ describe('editorFunctions', () => {
       expect(getInstancePositions(testScene)).toEqual([]);
     });
 
-    // Same reading as in 2D: "none" + position + ids means "move those there".
-    it('moves the instances when a brush_position is passed with the none brush', async () => {
+    // A position passed with the none brush would be silently ignored, which
+    // agents misread as a move failure: the call must fail explicitly.
+    it('fails when a brush_position is passed with the none brush', async () => {
       await putInstances({
         brush_kind: 'point',
         brush_position: '10,20,30',
@@ -3797,9 +3428,12 @@ describe('editorFunctions', () => {
         },
       });
 
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
+      expect(result.message).toEqual(
+        expect.stringContaining('never moves instances')
+      );
       expect(getInstancePositions(testScene)).toEqual([
-        { x: 10, y: 20, z: 150 },
+        { x: 10, y: 20, z: 30 },
       ]);
     });
 
@@ -3847,34 +3481,6 @@ describe('editorFunctions', () => {
         expect.stringContaining('Erased 1 instance')
       );
       expect(getInstances(testScene)).toHaveLength(1);
-    });
-
-    // Regression test: an id-targeted erase that also carried a brush_position
-    // used to erase everything the brush matched too — wiping a co-located
-    // duplicate along with the one instance singled out by id.
-    it('erases only the id-targeted instance even when the brush matches a co-located duplicate', async () => {
-      await putInstances({
-        brush_kind: 'point',
-        brush_position: '10,20,30',
-        new_instances_count: 2,
-      });
-      const instances = getInstances(testScene);
-      expect(instances).toHaveLength(2);
-
-      const result = await putInstances({
-        brush_kind: 'erase',
-        brush_position: '10,20,30',
-        existing_instance_ids: instances[0].uuid,
-      });
-
-      expect(result.message).toEqual(
-        expect.stringContaining(
-          `Erased 1 instance (id: ${instances[0].uuid.slice(0, 10)})`
-        )
-      );
-      const remaining = getInstances(testScene);
-      expect(remaining).toHaveLength(1);
-      expect(remaining[0].uuid).toBe(instances[1].uuid);
     });
 
     it('fails when erasing an unknown instance id (none found, nothing changed)', async () => {
@@ -4210,131 +3816,10 @@ describe('editorFunctions', () => {
 
       expect(result.success).toBe(false);
       expect(result.warnings).toMatchInlineSnapshot(
-        `"Layer \\"Ground\\" not found in scene \\"TestScene\\": no layer was renamed. Existing layers are: \\"\\". To create a new layer, pass its name as \\"layer_name\\" and do not set \\"new_layer_name\\"."`
+        `"Layer \\"Ground\\" not found in scene \\"TestScene\\": no layer was renamed. Existing layers are: \\"\\". To create a new layer, pass its name as \\"layer_name\\"."`
       );
       expect(testScene.hasLayerNamed('Ground')).toBe(false);
       expect(testScene.hasLayerNamed('Background')).toBe(false);
-    });
-
-    it('renames a layer, including in the layers container', async () => {
-      testScene.getLayers().insertNewLayer('UI', 1);
-
-      const result = await editorFunctions.change_scene_properties_layers_effects_groups.launchFunction(
-        {
-          ...makeFakeLaunchFunctionOptionsWithProject(project),
-          args: {
-            scene_name: 'TestScene',
-            changed_layers: [{ layer_name: 'UI', new_layer_name: 'Interface' }],
-          },
-        }
-      );
-
-      expect(result.success).toBe(true);
-      expect(result.message).toMatchInlineSnapshot(`
-        "Done.
-        Renamed layer \\"UI\\" to \\"Interface\\" for scene \\"TestScene\\" (events and instances updated)."
-      `);
-      expect(testScene.hasLayerNamed('UI')).toBe(false);
-      expect(testScene.hasLayerNamed('Interface')).toBe(true);
-    });
-
-    it('renames and moves a layer in the same call', async () => {
-      testScene.getLayers().insertNewLayer('UI', 1);
-      testScene.getLayers().insertNewLayer('Foreground', 2);
-
-      const result = await editorFunctions.change_scene_properties_layers_effects_groups.launchFunction(
-        {
-          ...makeFakeLaunchFunctionOptionsWithProject(project),
-          args: {
-            scene_name: 'TestScene',
-            changed_layers: [
-              {
-                layer_name: 'UI',
-                new_layer_name: 'Interface',
-                new_layer_position: 2,
-              },
-            ],
-          },
-        }
-      );
-
-      expect(result.success).toBe(true);
-      expect(result.message).toMatchInlineSnapshot(`
-        "Done.
-        Renamed layer \\"UI\\" to \\"Interface\\" for scene \\"TestScene\\" (events and instances updated).
-        Moved layer \\"Interface\\" to position 2 for scene \\"TestScene\\"."
-      `);
-      expect(testScene.getLayers().getLayerPosition('Interface')).toBe(2);
-    });
-
-    it('reports when a layer is already at the requested position', async () => {
-      testScene.getLayers().insertNewLayer('UI', 1);
-
-      const result = await editorFunctions.change_scene_properties_layers_effects_groups.launchFunction(
-        {
-          ...makeFakeLaunchFunctionOptionsWithProject(project),
-          args: {
-            scene_name: 'TestScene',
-            changed_layers: [{ layer_name: 'UI', new_layer_position: 1 }],
-          },
-        }
-      );
-
-      expect(result.success).toBe(true);
-      expect(result.message).toMatchInlineSnapshot(`
-        "Done.
-        Layer \\"UI\\" is already at position 1 for scene \\"TestScene\\"."
-      `);
-      expect(testScene.getLayers().getLayerPosition('UI')).toBe(1);
-    });
-
-    it('warns when renaming a layer to a name that already exists', async () => {
-      testScene.getLayers().insertNewLayer('UI', 1);
-      testScene.getLayers().insertNewLayer('HUD', 2);
-
-      const result = await editorFunctions.change_scene_properties_layers_effects_groups.launchFunction(
-        {
-          ...makeFakeLaunchFunctionOptionsWithProject(project),
-          args: {
-            scene_name: 'TestScene',
-            changed_layers: [{ layer_name: 'HUD', new_layer_name: 'UI' }],
-          },
-        }
-      );
-
-      expect(result.success).toBe(false);
-      expect(result.warnings).toMatchInlineSnapshot(
-        `"A layer named \\"UI\\" already exists in scene \\"TestScene\\": layer \\"HUD\\" was not renamed. To merge two layers, delete one with \\"delete_this_layer\\" and \\"move_instances_to_layer\\"."`
-      );
-      expect(testScene.hasLayerNamed('HUD')).toBe(true);
-      expect(testScene.hasLayerNamed('UI')).toBe(true);
-    });
-
-    it('creates a layer when new_layer_name is redundantly set to the same name', async () => {
-      const result = await editorFunctions.change_scene_properties_layers_effects_groups.launchFunction(
-        {
-          ...makeFakeLaunchFunctionOptionsWithProject(project),
-          args: {
-            scene_name: 'TestScene',
-            changed_layers: [
-              {
-                layer_name: 'HUD',
-                new_layer_name: 'HUD',
-                new_layer_position: 1,
-                delete_this_layer: false,
-                move_instances_to_layer: '',
-              },
-            ],
-          },
-        }
-      );
-
-      expect(result.success).toBe(true);
-      expect(result.message).toMatchInlineSnapshot(`
-        "Done.
-        Layer \\"HUD\\" did not exist in scene \\"TestScene\\": created it at position 1. Layers are now: \\"\\", \\"HUD\\". If you meant to modify an existing layer, check its exact name."
-      `);
-      expect(testScene.hasLayerNamed('HUD')).toBe(true);
     });
 
     it('does not create a layer when deleting a layer that does not exist', async () => {
@@ -4353,97 +3838,6 @@ describe('editorFunctions', () => {
         `"Layer \\"Ground\\" not found in scene \\"TestScene\\": nothing was deleted. Existing layers are: \\"\\"."`
       );
       expect(testScene.hasLayerNamed('Ground')).toBe(false);
-    });
-
-    it('changes the initial visibility of an existing layer', async () => {
-      testScene.getLayers().insertNewLayer('MobileControls', 1);
-
-      const result = await editorFunctions.change_scene_properties_layers_effects_groups.launchFunction(
-        {
-          ...makeFakeLaunchFunctionOptionsWithProject(project),
-          args: {
-            scene_name: 'TestScene',
-            changed_layers: [
-              { layer_name: 'MobileControls', new_visibility: false },
-            ],
-          },
-        }
-      );
-
-      expect(result.success).toBe(true);
-      expect(result.message).toMatchInlineSnapshot(`
-        "Done.
-        Set layer \\"MobileControls\\" initial visibility to hidden for scene \\"TestScene\\"."
-      `);
-      expect(
-        testScene
-          .getLayers()
-          .getLayer('MobileControls')
-          .getVisibility()
-      ).toBe(false);
-    });
-
-    it('creates a new layer with the requested initial visibility', async () => {
-      const result = await editorFunctions.change_scene_properties_layers_effects_groups.launchFunction(
-        {
-          ...makeFakeLaunchFunctionOptionsWithProject(project),
-          args: {
-            scene_name: 'TestScene',
-            changed_layers: [
-              { layer_name: 'ShopLayer', new_visibility: false },
-            ],
-          },
-        }
-      );
-
-      expect(result.success).toBe(true);
-      expect(result.message).toMatchInlineSnapshot(`
-        "Done.
-        Layer \\"ShopLayer\\" did not exist in scene \\"TestScene\\": created it at position 1 (initial visibility: hidden). Layers are now: \\"\\", \\"ShopLayer\\". If you meant to modify an existing layer, check its exact name."
-      `);
-      expect(
-        testScene
-          .getLayers()
-          .getLayer('ShopLayer')
-          .getVisibility()
-      ).toBe(false);
-    });
-
-    it('refuses to delete the base layer', async () => {
-      const result = await editorFunctions.change_scene_properties_layers_effects_groups.launchFunction(
-        {
-          ...makeFakeLaunchFunctionOptionsWithProject(project),
-          args: {
-            scene_name: 'TestScene',
-            changed_layers: [{ layer_name: '', delete_this_layer: true }],
-          },
-        }
-      );
-
-      expect(result.success).toBe(false);
-      expect(result.warnings).toMatchInlineSnapshot(
-        `"The base layer (named \\"\\") cannot be deleted: every scene must keep it. Move or delete its instances instead."`
-      );
-      expect(testScene.hasLayerNamed('')).toBe(true);
-    });
-
-    it('refuses to rename the base layer', async () => {
-      const result = await editorFunctions.change_scene_properties_layers_effects_groups.launchFunction(
-        {
-          ...makeFakeLaunchFunctionOptionsWithProject(project),
-          args: {
-            scene_name: 'TestScene',
-            changed_layers: [{ layer_name: '', new_layer_name: 'Background' }],
-          },
-        }
-      );
-
-      expect(result.success).toBe(false);
-      expect(result.warnings).toMatchInlineSnapshot(
-        `"The base layer (named \\"\\") cannot be renamed. Create a new layer and move instances to it instead."`
-      );
-      expect(testScene.hasLayerNamed('')).toBe(true);
-      expect(testScene.hasLayerNamed('Background')).toBe(false);
     });
   });
 
@@ -5436,157 +4830,6 @@ describe('editorFunctions', () => {
       expect(groups.has('Enemies')).toBe(false);
     });
 
-    it('creates an empty group when the changed_groups item specifies no other changes', async () => {
-      const result: EditorFunctionGenericOutput = await editorFunctions.change_scene_properties_layers_effects_groups.launchFunction(
-        {
-          ...makeFakeLaunchFunctionOptionsWithProject(project),
-          args: {
-            scene_name: 'TestScene',
-            changed_groups: [
-              {
-                group_name: 'MobileControls',
-                new_group_name: '',
-                delete_this_group: false,
-                objects_to_add: [],
-                objects_to_remove: [],
-              },
-            ],
-          },
-        }
-      );
-
-      expect(result.success).toBe(true);
-      expect(result.message).toMatchInlineSnapshot(`
-        "Done.
-        Created group \\"MobileControls\\" in scene \\"TestScene\\".
-        Group \\"MobileControls\\" in scene \\"TestScene\\" now contains 0 object(s): (none)."
-      `);
-      const groups = testScene.getObjects().getObjectGroups();
-      expect(groups.has('MobileControls')).toBe(true);
-      expect(
-        groups
-          .get('MobileControls')
-          .getAllObjectsNames()
-          .size()
-      ).toBe(0);
-      expect(groups.count()).toBe(2);
-    });
-
-    it('creates an empty group when only the group name is specified', async () => {
-      const result: EditorFunctionGenericOutput = await editorFunctions.change_scene_properties_layers_effects_groups.launchFunction(
-        {
-          ...makeFakeLaunchFunctionOptionsWithProject(project),
-          args: {
-            scene_name: 'TestScene',
-            changed_groups: [{ group_name: 'Interactables' }],
-          },
-        }
-      );
-
-      expect(result.success).toBe(true);
-      expect(result.message).toMatchInlineSnapshot(`
-        "Done.
-        Created group \\"Interactables\\" in scene \\"TestScene\\"."
-      `);
-      const groups = testScene.getObjects().getObjectGroups();
-      expect(groups.has('Interactables')).toBe(true);
-      expect(
-        groups
-          .get('Interactables')
-          .getAllObjectsNames()
-          .size()
-      ).toBe(0);
-    });
-
-    it('does not create a group when deleting a group that does not exist', async () => {
-      const result: EditorFunctionGenericOutput = await editorFunctions.change_scene_properties_layers_effects_groups.launchFunction(
-        {
-          ...makeFakeLaunchFunctionOptionsWithProject(project),
-          args: {
-            scene_name: 'TestScene',
-            changed_groups: [{ group_name: 'Ghosts', delete_this_group: true }],
-          },
-        }
-      );
-
-      expect(result.success).toBe(false);
-      expect(result.warnings).toMatchInlineSnapshot(
-        `"Group \\"Ghosts\\" not found in scene \\"TestScene\\": nothing was deleted. Existing groups are: \\"Enemies\\"."`
-      );
-      expect(
-        testScene
-          .getObjects()
-          .getObjectGroups()
-          .has('Ghosts')
-      ).toBe(false);
-    });
-
-    it('does not create a group when renaming a group that does not exist', async () => {
-      const result: EditorFunctionGenericOutput = await editorFunctions.change_scene_properties_layers_effects_groups.launchFunction(
-        {
-          ...makeFakeLaunchFunctionOptionsWithProject(project),
-          args: {
-            scene_name: 'TestScene',
-            changed_groups: [
-              { group_name: 'Ghosts', new_group_name: 'Spirits' },
-            ],
-          },
-        }
-      );
-
-      expect(result.success).toBe(false);
-      expect(result.warnings).toMatchInlineSnapshot(
-        `"Group \\"Ghosts\\" not found in scene \\"TestScene\\": no group was renamed. Existing groups are: \\"Enemies\\"."`
-      );
-      const groups = testScene.getObjects().getObjectGroups();
-      expect(groups.has('Ghosts')).toBe(false);
-      expect(groups.has('Spirits')).toBe(false);
-    });
-
-    it('does not create a group when removing objects from a group that does not exist', async () => {
-      const result: EditorFunctionGenericOutput = await editorFunctions.change_scene_properties_layers_effects_groups.launchFunction(
-        {
-          ...makeFakeLaunchFunctionOptionsWithProject(project),
-          args: {
-            scene_name: 'TestScene',
-            changed_groups: [
-              { group_name: 'Ghosts', objects_to_remove: ['Enemy1'] },
-            ],
-          },
-        }
-      );
-
-      expect(result.success).toBe(false);
-      expect(result.warnings).toMatchInlineSnapshot(
-        `"Group \\"Ghosts\\" not found in scene \\"TestScene\\": no objects were removed from it. Existing groups are: \\"Enemies\\"."`
-      );
-      expect(
-        testScene
-          .getObjects()
-          .getObjectGroups()
-          .has('Ghosts')
-      ).toBe(false);
-    });
-
-    it('creates a group when objects are added to it', async () => {
-      const result: EditorFunctionGenericOutput = await editorFunctions.change_scene_properties_layers_effects_groups.launchFunction(
-        {
-          ...makeFakeLaunchFunctionOptionsWithProject(project),
-          args: {
-            scene_name: 'TestScene',
-            changed_groups: [
-              { group_name: 'Players', objects_to_add: ['Enemy1'] },
-            ],
-          },
-        }
-      );
-
-      expect(result.success).toBe(true);
-      const groups = testScene.getObjects().getObjectGroups();
-      expect(groups.has('Players')).toBe(true);
-      expect(groups.get('Players').find('Enemy1')).toBe(true);
-    });
-
     it('echoes the resulting content of the group in the message', async () => {
       const result: EditorFunctionGenericOutput = await editorFunctions.change_scene_properties_layers_effects_groups.launchFunction(
         {
@@ -6115,182 +5358,6 @@ describe('editorFunctions', () => {
 
       expect(result.success).toBe(false);
       expect(result.message).toContain('Resource not found: "ghost.png"');
-    });
-  });
-  describe('change_gameplay_tests', () => {
-    let project: gdProject;
-
-    beforeEach(() => {
-      // $FlowFixMe[invalid-constructor]
-      project = new gd.ProjectHelper.createNewGDJSProject();
-      const tests = project.getTests();
-      tests.insertNewTest('First test', 0).setDescription('First.');
-      tests.insertNewTest('Second test', 1);
-      tests.insertNewTest('Debug test', 2);
-    });
-
-    afterEach(() => {
-      project.delete();
-    });
-
-    it('deletes a test (and notifies the editor first, so tabs can close)', async () => {
-      const fakeOptions = makeFakeLaunchFunctionOptionsWithProject(project);
-      const result: EditorFunctionGenericOutput = await editorFunctions.change_gameplay_tests.launchFunction(
-        {
-          ...fakeOptions,
-          args: {
-            scope: { type: 'project' },
-            changes: [{ test_name: 'Debug test', delete_this_test: true }],
-          },
-        }
-      );
-
-      expect(result.success).toBe(true);
-      expect(result.message).toContain('Deleted the test "Debug test"');
-      expect(project.getTests().hasTestNamed('Debug test')).toBe(false);
-      expect(fakeOptions.onWillDeleteGameplayTest).toHaveBeenCalledWith({
-        gameplayTestProjectItemName: 'Debug test',
-      });
-      expect(result.tests).toEqual([
-        { test_name: 'First test', description: 'First.' },
-        { test_name: 'Second test', description: '' },
-      ]);
-    });
-
-    it('renames a test (and notifies the editor so tabs are renamed)', async () => {
-      const fakeOptions = makeFakeLaunchFunctionOptionsWithProject(project);
-      const result: EditorFunctionGenericOutput = await editorFunctions.change_gameplay_tests.launchFunction(
-        {
-          ...fakeOptions,
-          args: {
-            scope: { type: 'project' },
-            changes: [
-              {
-                test_name: 'First test',
-                changed_properties: [
-                  { property_name: 'name', new_value: 'Renamed test' },
-                  { property_name: 'description', new_value: 'Updated.' },
-                ],
-              },
-            ],
-          },
-        }
-      );
-
-      expect(result.success).toBe(true);
-      expect(project.getTests().hasTestNamed('First test')).toBe(false);
-      expect(project.getTests().hasTestNamed('Renamed test')).toBe(true);
-      expect(
-        project
-          .getTests()
-          .getTest('Renamed test')
-          .getDescription()
-      ).toBe('Updated.');
-      expect(
-        fakeOptions.onProjectItemRenamedOutsideEditor
-      ).toHaveBeenCalledWith({
-        kind: 'gameplay-test',
-        oldName: 'First test',
-        newName: 'Renamed test',
-      });
-    });
-
-    it('refuses a rename colliding with an existing test', async () => {
-      const result: EditorFunctionGenericOutput = await editorFunctions.change_gameplay_tests.launchFunction(
-        {
-          ...makeFakeLaunchFunctionOptionsWithProject(project),
-          args: {
-            scope: { type: 'project' },
-            changes: [
-              {
-                test_name: 'First test',
-                changed_properties: [
-                  { property_name: 'name', new_value: 'Second test' },
-                ],
-              },
-            ],
-          },
-        }
-      );
-
-      expect(result.success).toBe(false);
-      expect(result.message).toContain('already exists');
-      expect(project.getTests().hasTestNamed('First test')).toBe(true);
-    });
-
-    it('reorders a test with the index property (clamped)', async () => {
-      const result: EditorFunctionGenericOutput = await editorFunctions.change_gameplay_tests.launchFunction(
-        {
-          ...makeFakeLaunchFunctionOptionsWithProject(project),
-          args: {
-            scope: { type: 'project' },
-            changes: [
-              {
-                test_name: 'Debug test',
-                changed_properties: [
-                  { property_name: 'index', new_value: '0' },
-                ],
-              },
-              {
-                test_name: 'First test',
-                changed_properties: [
-                  { property_name: 'index', new_value: '999' },
-                ],
-              },
-            ],
-          },
-        }
-      );
-
-      expect(result.success).toBe(true);
-      expect(result.tests).toEqual([
-        { test_name: 'Debug test', description: '' },
-        { test_name: 'Second test', description: '' },
-        { test_name: 'First test', description: 'First.' },
-      ]);
-    });
-
-    it('rejects an unknown test with the list of existing ones, and an unknown property', async () => {
-      const result: EditorFunctionGenericOutput = await editorFunctions.change_gameplay_tests.launchFunction(
-        {
-          ...makeFakeLaunchFunctionOptionsWithProject(project),
-          args: {
-            scope: { type: 'project' },
-            changes: [
-              { test_name: 'Ghost test', delete_this_test: true },
-              {
-                test_name: 'First test',
-                changed_properties: [
-                  { property_name: 'source', new_value: 'await 1;' },
-                ],
-              },
-            ],
-          },
-        }
-      );
-
-      expect(result.success).toBe(false);
-      expect(result.message).toContain('Unknown test "Ghost test"');
-      expect(result.message).toContain('"First test"');
-      expect(result.message).toContain('Unknown property "source"');
-      // The valid part of the batch still reports the project as modified: no
-      // change was applied here, so it is not.
-      expect(result.meta && result.meta.didModifyProject).toBe(false);
-    });
-
-    it('fails on an unknown scope', async () => {
-      const result: EditorFunctionGenericOutput = await editorFunctions.change_gameplay_tests.launchFunction(
-        {
-          ...makeFakeLaunchFunctionOptionsWithProject(project),
-          args: {
-            scope: { type: 'extension', extension_name: 'NotAnExtension' },
-            changes: [{ test_name: 'First test', delete_this_test: true }],
-          },
-        }
-      );
-
-      expect(result.success).toBe(false);
-      expect(result.message).toContain('does not exist');
     });
   });
 });

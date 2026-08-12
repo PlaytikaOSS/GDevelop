@@ -44,7 +44,6 @@ const fakeEditorToolbar = (
 
 const defaultProps: MainFrameToolbarProps = {
   showProjectButtons: true,
-  showPreviewAndShareButtons: true,
   openShareDialog: () => {},
   isSharingEnabled: true,
   hidden: false,

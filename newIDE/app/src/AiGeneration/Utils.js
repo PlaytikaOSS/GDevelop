@@ -8,7 +8,6 @@ import {
   type ObjectGroupsOutsideEditorChanges,
   type ProjectItemRenamedOutsideEditorChanges,
   type WillDeleteSceneChanges,
-  type WillDeleteGameplayTestChanges,
   type WillDeleteObjectChanges,
 } from '../EditorFunctions/OutsideEditorChanges';
 import {
@@ -35,7 +34,6 @@ import {
   getPendingSubAgentFunctionCalls,
   getLastMessagesFromAiRequestOutput,
   getLatestActivePlan,
-  getSubAgentKind,
 } from './AiRequestUtils';
 import { useEnsureExtensionInstalled } from './UseEnsureExtensionInstalled';
 import { useGenerateEvents } from './UseGenerateEvents';
@@ -99,11 +97,9 @@ export const useRefreshLimits = (
   return { isRefreshingLimits, refreshLimits };
 };
 
-// The tools of the orchestrator AND of the sub-agents it creates server-side.
-// Only bump it once the matching prompts and generation-api are deployed;
-// reverting it is the flip-back (every past version stays served).
-// v14 adds gameplay tests (`run_tests` + the tester sub-agent).
-export const AI_ORCHESTRATOR_TOOLS_VERSION: string = 'v14';
+// All requests are made in orchestrator mode, and sub-agents (explorer, edit)
+// are created server-side with the same tools version as the orchestrator.
+export const AI_ORCHESTRATOR_TOOLS_VERSION = 'v8';
 
 /**
  * A pending request for the user to approve (or refuse) a project-modifying
@@ -132,17 +128,7 @@ const doesFunctionCallModifyProject = (
     editorFunctions[functionCall.name] ||
     editorFunctionsWithoutProject[functionCall.name] ||
     null;
-  if (!editorFunctionDef) return false;
-  if (editorFunctionDef.getModifiesProject) {
-    try {
-      return editorFunctionDef.getModifiesProject(
-        JSON.parse(functionCall.arguments)
-      );
-    } catch (error) {
-      return !!editorFunctionDef.modifiesProject;
-    }
-  }
-  return !!editorFunctionDef.modifiesProject;
+  return !!(editorFunctionDef && editorFunctionDef.modifiesProject);
 };
 
 /**
@@ -242,7 +228,6 @@ export const useProcessFunctionCalls = ({
   onObjectGroupsModifiedOutsideEditor,
   onProjectItemRenamedOutsideEditor,
   onWillDeleteScene,
-  onWillDeleteGameplayTest,
   onWillDeleteObject,
   onWillInstallExtension,
   onExtensionInstalled,
@@ -285,9 +270,6 @@ export const useProcessFunctionCalls = ({
     changes: ProjectItemRenamedOutsideEditorChanges
   ) => void,
   onWillDeleteScene: (changes: WillDeleteSceneChanges) => Promise<void>,
-  onWillDeleteGameplayTest: (
-    changes: WillDeleteGameplayTestChanges
-  ) => Promise<void>,
   onWillDeleteObject: (changes: WillDeleteObjectChanges) => void,
   onWillInstallExtension: (extensionNames: Array<string>) => void,
   onExtensionInstalled: (extensionNames: Array<string>) => void,
@@ -414,15 +396,6 @@ export const useProcessFunctionCalls = ({
         );
       });
 
-      // An explorer sub-agent's script is read-only (see below: it is exposed
-      // only non-mutating functions). Knowing this lets us both skip its edit
-      // approval and restrict the functions its `run_script` can call.
-      const subAgentKind = getSubAgentKind({
-        aiRequest,
-        aiRequests: aiRequestsRef.current,
-      });
-      const isReadOnlyScriptContext = subAgentKind === 'explorer';
-
       // Gate project-modifying calls behind a user confirmation when auto-edit
       // is off. Read-only calls (exploration, inspection) always run. The first
       // time an edit agent (or a direct modifying call) is about to change the
@@ -447,10 +420,6 @@ export const useProcessFunctionCalls = ({
         const modifyingFunctionCalls = functionCallsToProcess.filter(
           functionCall =>
             doesFunctionCallModifyProject(functionCall) &&
-            // An explorer sub-agent's `run_script` is read-only (exposed only
-            // non-mutating functions), so it never needs an edit approval even
-            // though `run_script` is declared as project-modifying.
-            !(isReadOnlyScriptContext && functionCall.name === 'run_script') &&
             !isCallApproved(functionCall)
         );
 
@@ -557,13 +526,7 @@ export const useProcessFunctionCalls = ({
           editorCallbacks,
           // $FlowFixMe[incompatible-type]
           toolOptions: aiRequest.toolOptions || null,
-          // Threaded so functions can gate version-dependent behavior (e.g. a
-          // no-op counts as success from v12 — see isNoOpConsideredSuccess).
-          toolsVersion: aiRequest.toolsVersion || null,
           i18n,
-          // Explorer sub-agent scripts are read-only: restrict their
-          // `run_script` to non-mutating functions (defense in depth).
-          runScriptReadOnly: isReadOnlyScriptContext,
           functionCalls: functionCallsToProcess.map(functionCall => ({
             name: functionCall.name,
             arguments: functionCall.arguments,
@@ -608,7 +571,6 @@ export const useProcessFunctionCalls = ({
           // Not coalesced: must run before the scene is actually deleted so
           // the tab can be closed while the gdLayout is still valid.
           onWillDeleteScene,
-          onWillDeleteGameplayTest,
           // Not coalesced: must run before the object is actually deleted so
           // editors can safely read it to close a dialog/panel referring to it.
           onWillDeleteObject,
@@ -664,7 +626,6 @@ export const useProcessFunctionCalls = ({
       onObjectGroupsModifiedOutsideEditor,
       onProjectItemRenamedOutsideEditor,
       onWillDeleteScene,
-      onWillDeleteGameplayTest,
       onWillDeleteObject,
       ensureExtensionInstalled,
       onWillInstallExtension,
@@ -1420,8 +1381,6 @@ export type OpenAskAiOptions = {|
   aiRequestId?: string | null, // If null, a new request will be created.
   paneIdentifier?: 'left' | 'center' | 'right',
   continueProcessingFunctionCallsOnMount?: boolean,
-  // When set, a new chat is started with this text pre-filled in the input.
-  prefilledUserRequest?: string,
 |};
 
 export type NewAiRequestOptions = {|

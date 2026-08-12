@@ -14,7 +14,7 @@ import {
  * This allows to support new file format with only a new parser.
  */
 export declare class EditableTileMap {
-  private _backgroundResourceName;
+  private _backgroundResourceName?;
   private _tileSet;
   private _layers;
   /**
@@ -34,10 +34,9 @@ export declare class EditableTileMap {
    */
   private dimY;
   /**
-   * It can be useful for auto-tilling.
+   * True if is allowed to set a tile out of the tile map's bounds.
+   * Useful when editing the tile map easily.
    */
-  private tileSetColumnCount;
-  private tileSetRowCount;
   /**
    * @param tileWidth The width of a tile.
    * @param tileHeight The height of a tile.
@@ -52,7 +51,6 @@ export declare class EditableTileMap {
     dimY: integer,
     tileSet: Map<integer, TileDefinition>
   );
-  clone(): EditableTileMap;
   /**
    * Loads EditableTileMap from serialized data.
    * Uses object configuration as the source of truth as the serialized data
@@ -122,17 +120,13 @@ export declare class EditableTileMap {
   setDimensionY(dim: integer): void;
   /**
    * @param tileId The tile identifier
-   * @returns The tile definition from the tile set.
+   * @returns The tile definition form the tile set.
    */
   getTileDefinition(tileId: integer): TileDefinition | undefined;
   /**
-   * @returns All the tile definitions from the tile set.
+   * @returns All the tile definitions form the tile set.
    */
   getTileDefinitions(): Iterable<TileDefinition>;
-  getTileSetColumnCount(): integer;
-  getTileSetRowCount(): integer;
-  setTileSetColumnCount(tileSetColumnCount: integer): void;
-  setTileSetRowCount(tileSetRowCount: integer): void;
   /**
    * @param id The identifier of the new layer.
    * @returns The new layer.
@@ -151,7 +145,7 @@ export declare class EditableTileMap {
   /**
    * @returns The resource name of the background
    */
-  getBackgroundResourceName(): string | null;
+  getBackgroundResourceName(): string;
   /**
    * @returns All the layers of the tile map.
    */
@@ -210,7 +204,6 @@ declare abstract class AbstractEditableLayer {
    * @param id The layer identifier.
    */
   constructor(tileMap: EditableTileMap, id: integer);
-  abstract clone(tileMap: EditableTileMap, id: integer): AbstractEditableLayer;
   setVisible(visible: boolean): void;
   toJSObject(): EditableTileMapLayerAsJsObject;
   /**
@@ -229,7 +222,6 @@ export declare class EditableObjectLayer extends AbstractEditableLayer {
    * @param id The layer identifier.
    */
   constructor(tileMap: EditableTileMap, id: integer);
-  clone(tileMap: EditableTileMap, id: integer): EditableObjectLayer;
   add(object: TileObject): void;
   isEmpty(): boolean;
 }
@@ -286,7 +278,7 @@ export declare class EditableTileMapLayer extends AbstractEditableLayer {
    * @param id The layer identifier.
    */
   constructor(tileMap: EditableTileMap, id: integer);
-  clone(tileMap: EditableTileMap, id: integer): EditableTileMapLayer;
+  buildEmptyLayer(dimensionX: number, dimensionY: number): void;
   static from(
     editableTileMapLayerAsJsObject: EditableTileMapLayerAsJsObject,
     tileMap: EditableTileMap,

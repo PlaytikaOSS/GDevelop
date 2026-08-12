@@ -67,13 +67,6 @@ import {
   type ExternalLayoutTreeViewItemProps,
   type ExternalLayoutTreeViewItemCallbacks,
 } from './ExternalLayoutTreeViewItemContent';
-import {
-  GameplayTestTreeViewItemContent,
-  getGameplayTestTreeViewItemId,
-  type GameplayTestTreeViewItemProps,
-  type GameplayTestTreeViewItemCallbacks,
-} from './GameplayTestTreeViewItemContent';
-import { DEFAULT_GAMEPLAY_TEST_SOURCE } from '../GameplayTests/DefaultGameplayTestSource';
 import { type MenuItemTemplate } from '../UI/Menu/Menu.flow';
 import useAlertDialog from '../UI/Alert/useAlertDialog';
 import { type ShowConfirmDeleteDialogOptions } from '../UI/Alert/AlertContext';
@@ -114,15 +107,11 @@ export const externalEventsRootFolderId: string = getProjectManagerItemId(
 export const externalLayoutsRootFolderId: string = getProjectManagerItemId(
   'external-layout'
 );
-export const gameplayTestsRootFolderId: string = getProjectManagerItemId(
-  'gameplay-tests'
-);
 
 const scenesEmptyPlaceholderId = 'scenes-placeholder';
 const extensionsEmptyPlaceholderId = 'extensions-placeholder';
 const externalEventsEmptyPlaceholderId = 'external-events-placeholder';
 const externalLayoutEmptyPlaceholderId = 'external-layout-placeholder';
-const gameplayTestsEmptyPlaceholderId = 'gameplay-tests-placeholder';
 
 const styles = {
   listContainer: {
@@ -432,7 +421,6 @@ type Props = {|
   ...ExtensionTreeViewItemCallbacks,
   ...ExternalEventsTreeViewItemCallbacks,
   ...ExternalLayoutTreeViewItemCallbacks,
-  ...GameplayTestTreeViewItemCallbacks,
   onOpenResources: () => void,
   onReloadEventsFunctionsExtensions: () => void,
   isOpen: boolean,
@@ -468,18 +456,14 @@ const ProjectManager = React.forwardRef<Props, ProjectManagerInterface>(
       onDeleteExternalEvents,
       onDeleteExternalLayout,
       onDeleteEventsFunctionsExtension,
-      onDeleteGameplayTest,
       onRenameLayout,
       onRenameExternalEvents,
       onRenameExternalLayout,
       onRenameEventsFunctionsExtension,
-      onRenameGameplayTest,
       onOpenLayout,
       onOpenExternalEvents,
       onOpenExternalLayout,
       onOpenEventsFunctionsExtension,
-      onOpenGameplayTest,
-      onRunGameplayTest,
       onOpenResources,
       onReloadEventsFunctionsExtensions,
       isOpen,
@@ -804,35 +788,6 @@ const ProjectManager = React.forwardRef<Props, ProjectManagerInterface>(
       [project, onProjectItemModified, editName, scrollToItem]
     );
 
-    const addGameplayTest = React.useCallback(
-      (index: number, i18n: I18nType) => {
-        if (!project) return;
-
-        const newName = newNameGenerator(i18n._(t`Untitled test`), name =>
-          project.getTests().hasTestNamed(name)
-        );
-        const newTest = project.getTests().insertNewTest(newName, index + 1);
-        newTest.setSource(DEFAULT_GAMEPLAY_TEST_SOURCE);
-        onProjectItemModified();
-
-        const gameplayTestItemId = getGameplayTestTreeViewItemId(newTest);
-        if (treeViewRef.current) {
-          treeViewRef.current.openItems([
-            gameplayTestItemId,
-            gameplayTestsRootFolderId,
-          ]);
-        }
-        // Scroll to the new test (after a new render was done).
-        setTimeout(() => {
-          scrollToItem(gameplayTestItemId);
-        }, 100); // A few ms is enough for a new render to be done.
-
-        // We focus it so the user can edit the name directly.
-        editName(gameplayTestItemId);
-      },
-      [project, onProjectItemModified, editName, scrollToItem]
-    );
-
     const addExternalLayout = React.useCallback(
       (index: number, i18n: I18nType) => {
         if (!project) return;
@@ -1079,50 +1034,13 @@ const ProjectManager = React.forwardRef<Props, ProjectManagerInterface>(
       ]
     );
 
-    const gameplayTestTreeViewItemProps = React.useMemo<?GameplayTestTreeViewItemProps>(
-      () =>
-        project
-          ? {
-              project,
-              unsavedChanges,
-              preferences,
-              gdevelopTheme,
-              forceUpdate,
-              forceUpdateList,
-              showDeleteConfirmation,
-              editName,
-              scrollToItem,
-              onDeleteGameplayTest,
-              onRenameGameplayTest,
-              onOpenGameplayTest,
-              onRunGameplayTest,
-            }
-          : null,
-      [
-        project,
-        unsavedChanges,
-        preferences,
-        gdevelopTheme,
-        forceUpdate,
-        forceUpdateList,
-        showDeleteConfirmation,
-        editName,
-        scrollToItem,
-        onDeleteGameplayTest,
-        onRenameGameplayTest,
-        onOpenGameplayTest,
-        onRunGameplayTest,
-      ]
-    );
-
     const getTreeViewData = React.useCallback(
       (i18n: I18nType): Array<TreeViewItem> => {
         return !project ||
           !sceneTreeViewItemProps ||
           !extensionTreeViewItemProps ||
           !externalEventsTreeViewItemProps ||
-          !externalLayoutTreeViewItemProps ||
-          !gameplayTestTreeViewItemProps
+          !externalLayoutTreeViewItemProps
           ? []
           : [
               {
@@ -1316,54 +1234,15 @@ const ProjectManager = React.forwardRef<Props, ProjectManagerInterface>(
                   );
                 },
               },
-              {
-                isRoot: true,
-                content: new LabelTreeViewItemContent(
-                  gameplayTestsRootFolderId,
-                  i18n._(t`Gameplay tests`),
-                  {
-                    icon: <Add />,
-                    label: i18n._(t`Add a gameplay test`),
-                    click: () => {
-                      const index = project.getTests().getTestsCount() - 1;
-                      addGameplayTest(index, i18n);
-                    },
-                    id: 'add-new-gameplay-test-button',
-                  }
-                ),
-                getChildren(i18n: I18nType): ?Array<TreeViewItem> {
-                  if (project.getTests().getTestsCount() === 0) {
-                    return [
-                      new PlaceHolderTreeViewItem(
-                        gameplayTestsEmptyPlaceholderId,
-                        i18n._(t`Start by adding a new gameplay test.`)
-                      ),
-                    ];
-                  }
-                  return mapFor(
-                    0,
-                    project.getTests().getTestsCount(),
-                    i =>
-                      new LeafTreeViewItem(
-                        new GameplayTestTreeViewItemContent(
-                          project.getTests().getTestAt(i),
-                          gameplayTestTreeViewItemProps
-                        )
-                      )
-                  );
-                },
-              },
             ];
       },
       [
         addExternalEvents,
         addExternalLayout,
-        addGameplayTest,
         addNewScene,
         extensionTreeViewItemProps,
         externalEventsTreeViewItemProps,
         externalLayoutTreeViewItemProps,
-        gameplayTestTreeViewItemProps,
         onOpenGamesDashboardDialog,
         onOpenResources,
         openProjectProperties,
@@ -1430,7 +1309,6 @@ const ProjectManager = React.forwardRef<Props, ProjectManagerInterface>(
       extensionsRootFolderId,
       externalEventsRootFolderId,
       externalLayoutsRootFolderId,
-      gameplayTestsRootFolderId,
     ];
 
     const [
@@ -1503,7 +1381,6 @@ const ProjectManager = React.forwardRef<Props, ProjectManagerInterface>(
                           // $FlowFixMe[incompatible-type]
                           // $FlowFixMe[incompatible-exact]
                           <TreeView
-                            enableStickyAncestors
                             key={listKey}
                             ref={treeViewRef}
                             items={getTreeViewData(i18n)}

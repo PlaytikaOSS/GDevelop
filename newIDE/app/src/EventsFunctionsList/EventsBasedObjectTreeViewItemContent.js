@@ -143,12 +143,11 @@ export class EventsBasedObjectTreeViewItemContent
     return { objectName: this.eventsBasedObject.getName() };
   }
 
-  // Must stay side-effect free: also triggered when a drag starts.
-  onSelect(): void {}
-
-  onClick(): void {
+  onSelect(): void {
     this.props.onSelectEventsBasedObject(this.eventsBasedObject);
   }
+
+  onClick(): void {}
 
   rename(newName: string): void {
     if (this.eventsBasedObject.getName() === newName) return;

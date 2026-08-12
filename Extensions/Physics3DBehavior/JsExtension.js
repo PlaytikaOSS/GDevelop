@@ -2052,7 +2052,7 @@ module.exports = {
 
         behaviorProperties
           .getOrCreate('slopeMaxAngle')
-          .setLabel(_('Slope max. angle'))
+          .setLabel('Slope max. angle')
           .setGroup(_('Walk'))
           .setType('Number')
           .setMeasurementUnit(gd.MeasurementUnit.getDegreeAngle())
@@ -2070,7 +2070,7 @@ module.exports = {
         }
         behaviorProperties
           .getOrCreate('stairHeightMax')
-          .setLabel(_('Max. stair height'))
+          .setLabel('Max. stair height')
           .setGroup(_('Walk'))
           .setType('Number')
           .setMeasurementUnit(gd.MeasurementUnit.getPixel())
@@ -2085,7 +2085,7 @@ module.exports = {
 
         behaviorProperties
           .getOrCreate('shouldBindObjectAndForwardAngle')
-          .setLabel(_('Keep object angle and forward direction the same'))
+          .setLabel('Keep object angle and forward direction the same')
           .setGroup(_('Walk'))
           .setType('Boolean')
           .setValue(
@@ -2103,7 +2103,7 @@ module.exports = {
         }
         behaviorProperties
           .getOrCreate('canBePushed')
-          .setLabel(_('Can be pushed by other characters'))
+          .setLabel('Can be pushed by other characters')
           .setGroup(_('Walk'))
           .setType('Boolean')
           .setValue(

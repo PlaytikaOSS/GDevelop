@@ -7,7 +7,6 @@ import InstancesRenderer from './InstancesRenderer';
 import ViewPosition from './ViewPosition';
 import SelectedInstances from './SelectedInstances';
 import HighlightedInstance from './HighlightedInstance';
-import HiddenInstancesDecorations from './HiddenInstancesDecorations';
 import SelectionRectangle from './SelectionRectangle';
 import InstancesResizer, {
   type ResizeGrabbingLocation,
@@ -94,7 +93,6 @@ export type InstancesEditorShortcutsCallbacks = {|
   onShift1: () => void,
   onShift2: () => void,
   onShift3: () => void,
-  onFocusOnSelection: () => void,
 |};
 
 export type InstancesEditorPropsWithoutSizeAndScroll = {|
@@ -171,7 +169,6 @@ export default class InstancesEditor extends Component<Props, State> {
   tileMapPaintingPreview: TileMapPaintingPreview;
   clickInterceptor: ClickInterceptor;
   highlightedInstance: HighlightedInstance;
-  hiddenInstancesDecorations: HiddenInstancesDecorations;
   instancesResizer: InstancesResizer;
   instancesRotator: InstancesRotator;
   instancesMover: InstancesMover;
@@ -496,12 +493,6 @@ export default class InstancesEditor extends Component<Props, State> {
         this.highlightedInstance.getPixiObject()
       );
     }
-    if (this.hiddenInstancesDecorations) {
-      this.uiPixiContainer.removeChild(
-        this.hiddenInstancesDecorations.getPixiObject()
-      );
-      this.hiddenInstancesDecorations.delete();
-    }
     if (this.tileMapPaintingPreview) {
       this.uiPixiContainer.removeChild(
         this.tileMapPaintingPreview.getPixiObject()
@@ -604,12 +595,6 @@ export default class InstancesEditor extends Component<Props, State> {
       toCanvasCoordinates: this.viewPosition.toCanvasCoordinates,
       isInstanceOf3DObject: this.props.isInstanceOf3DObject,
     });
-    this.hiddenInstancesDecorations = new HiddenInstancesDecorations({
-      instances: props.initialInstances,
-      layersContainer: props.layersContainer,
-      instanceMeasurer: this.instancesRenderer.getInstanceMeasurer(),
-      toCanvasCoordinates: this.viewPosition.toCanvasCoordinates,
-    });
     this.instancesResizer = new InstancesResizer({
       instanceMeasurer: this.instancesRenderer.getInstanceMeasurer(),
       instancesEditorSettings: this.props.instancesEditorSettings,
@@ -645,9 +630,6 @@ export default class InstancesEditor extends Component<Props, State> {
     this.uiPixiContainer.addChild(this.windowMask.getPixiObject());
     this.uiPixiContainer.addChild(this.selectedInstances.getPixiContainer());
     this.uiPixiContainer.addChild(this.highlightedInstance.getPixiObject());
-    this.uiPixiContainer.addChild(
-      this.hiddenInstancesDecorations.getPixiObject()
-    );
     this.uiPixiContainer.addChild(this.tileMapPaintingPreview.getPixiObject());
     this.uiPixiContainer.addChild(this.clickInterceptor.getPixiObject());
     this.uiPixiContainer.addChild(this.statusBar.getPixiObject());
@@ -670,9 +652,6 @@ export default class InstancesEditor extends Component<Props, State> {
     // by security, check that they are defined before deleting them.
     if (this.selectionRectangle) {
       this.selectionRectangle.delete();
-    }
-    if (this.hiddenInstancesDecorations) {
-      this.hiddenInstancesDecorations.delete();
     }
     if (this.instancesRenderer) {
       this.instancesRenderer.delete();
@@ -1826,7 +1805,6 @@ export default class InstancesEditor extends Component<Props, State> {
         this.canvasCursor.render();
         this.grid.render();
         this.highlightedInstance.render();
-        this.hiddenInstancesDecorations.render();
         this.tileMapPaintingPreview.render();
         this.clickInterceptor.render();
         this.selectedInstances.render();

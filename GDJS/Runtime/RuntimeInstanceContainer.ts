@@ -52,11 +52,9 @@ namespace gdjs {
 
     // Options for the debug draw:
     _debugDrawEnabled: boolean = false;
-    _debugDrawShowHitBoxes: boolean = false;
     _debugDrawShowHiddenInstances: boolean = false;
     _debugDrawShowPointsNames: boolean = false;
     _debugDrawShowCustomPoints: boolean = false;
-    _debugDrawHooks: Array<(rendererObject: any) => void> = [];
 
     _onceTriggers: OnceTriggers;
 
@@ -260,14 +258,9 @@ namespace gdjs {
       }
 
       this._debugDrawEnabled = enableDebugDraw;
-      this._debugDrawShowHitBoxes = enableDebugDraw;
       this._debugDrawShowHiddenInstances = showHiddenInstances;
       this._debugDrawShowPointsNames = showPointsNames;
       this._debugDrawShowCustomPoints = showCustomPoints;
-    }
-
-    registerDebugDrawHook(render: (rendererObject: any) => void) {
-      this._debugDrawHooks.push(render);
     }
 
     /**
@@ -401,12 +394,6 @@ namespace gdjs {
 
           newObject.setZOrder(instanceData.zOrder);
           newObject.setLayer(instanceData.layer);
-          // Instances hidden at start are not hidden in the in-game editor:
-          // they must stay visible to be seen and manipulated (like in the
-          // 2D editor).
-          if (instanceData.hidden && !this.getGame().isInGameEdition()) {
-            newObject.hide(true);
-          }
           newObject
             .getVariables()
             .initFrom(instanceData.initialVariables, true);

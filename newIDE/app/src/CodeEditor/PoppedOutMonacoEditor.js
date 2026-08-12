@@ -6,8 +6,6 @@ import {
   initializeCompletions,
   enableJsTypeDiagnostics,
   applyElectronClipboardPatch,
-  suppressDiagnosticsMessagesForModel,
-  unsuppressDiagnosticsMessagesForModel,
   baseEditorOptions,
 } from './MonacoSetup';
 
@@ -30,8 +28,6 @@ type Props = {|
   onEditorMounted?: () => void,
   onFocus: () => void,
   onBlur: () => void,
-  /** See `CodeEditor`. */
-  suppressedDiagnosticsMessages?: Array<string>,
 |};
 
 type State = {|
@@ -190,12 +186,6 @@ class PoppedOutMonacoEditor extends React.Component<Props, State> {
           cursorLine: cursorPosition.lineNumber,
         });
       }
-      if (this._monaco) {
-        unsuppressDiagnosticsMessagesForModel(
-          this._monaco,
-          this._editor.getModel()
-        );
-      }
       this._editor.dispose();
       this._editor = null;
     }
@@ -239,15 +229,6 @@ class PoppedOutMonacoEditor extends React.Component<Props, State> {
     });
 
     applyElectronClipboardPatch(this._editor, monaco);
-
-    const { suppressedDiagnosticsMessages } = this.props;
-    if (suppressedDiagnosticsMessages) {
-      suppressDiagnosticsMessagesForModel(
-        monaco,
-        this._editor.getModel(),
-        suppressedDiagnosticsMessages
-      );
-    }
 
     this._editor.onDidChangeModelContent(() => {
       if (!this._editor) return;

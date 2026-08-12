@@ -79,8 +79,6 @@
 #include <GDCore/Project/EventsFunctionsExtension.h>
 #include <GDCore/Project/ExternalEvents.h>
 #include <GDCore/Project/ExternalLayout.h>
-#include <GDCore/Project/Test.h>
-#include <GDCore/Project/TestsContainer.h>
 #include <GDCore/Project/FunctionFolderOrFunction.h>
 #include <GDCore/Project/InitialInstance.h>
 #include <GDCore/Project/InitialInstancesContainer.h>
@@ -970,7 +968,6 @@ typedef std::vector<gd::PropertyDescriptorChoice> VectorPropertyDescriptorChoice
 #define RemoveAt Remove
 #define GetEventsFunctionAt GetEventsFunction
 #define GetVariantAt GetVariant
-#define GetTestAt GetTest
 #define GetEffectAt GetEffect
 #define GetParameterAt GetParameter
 

@@ -1047,7 +1047,7 @@ module.exports = {
             'Enabling texture transparency has an impact on rendering performance.'
           )
         )
-        .setGroup(_('Texture'));
+        .setGroup(_('Texture settings'));
 
       objectProperties
         .getOrCreate('facesOrientation')
@@ -2846,7 +2846,6 @@ module.exports = {
       _facesOrientation = 'Y';
       _backFaceUpThroughWhichAxisRotation = 'X';
       _shouldUseTransparentTexture = false;
-      _materialType = '';
       _tint = '';
 
       constructor(
@@ -2894,7 +2893,6 @@ module.exports = {
             project,
             this._faceResourceNames[faceIndex],
             {
-              forceBasicMaterial: this._materialType === 'Basic',
               useTransparentTexture: this._shouldUseTransparentTexture,
             }
           );
@@ -2982,11 +2980,6 @@ module.exports = {
           object.content.enableTextureTransparency || false;
         if (this._shouldUseTransparentTexture !== shouldUseTransparentTexture) {
           this._shouldUseTransparentTexture = shouldUseTransparentTexture;
-          materialsDirty = true;
-        }
-        const materialType = object.content.materialType;
-        if (this._materialType !== materialType) {
-          this._materialType = materialType;
           materialsDirty = true;
         }
         const tint = object.content.tint || '255;255;255';

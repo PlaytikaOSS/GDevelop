@@ -13,7 +13,7 @@ import Welcome from './Welcome';
 import HelpButton from '../UI/HelpButton';
 import HelpIcon from '../UI/HelpIcon';
 import AboutDialog from '../MainFrame/AboutDialog';
-import { DragHandleIcon } from '../UI/DragHandle';
+import DragHandle from '../UI/DragHandle';
 import Background from '../UI/Background';
 import LocalFolderPicker from '../UI/LocalFolderPicker';
 import LocalFilePicker from '../UI/LocalFilePicker';
@@ -721,7 +721,7 @@ storiesOf('UI Building Blocks/PlaceholderLoader', module)
 // $FlowFixMe[invalid-export]
 storiesOf('UI Building Blocks/DragHandle', module)
   .addDecorator(paperDecorator)
-  .add('default', () => <DragHandleIcon />);
+  .add('default', () => <DragHandle />);
 
 // $FlowFixMe[invalid-export]
 storiesOf('UI Building Blocks/EmptyMessage', module)

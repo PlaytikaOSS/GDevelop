@@ -54,7 +54,6 @@ void EventsFunctionsExtension::Init(const gd::EventsFunctionsExtension& other) {
   eventsBasedObjects = other.eventsBasedObjects;
   globalVariables = other.GetGlobalVariables();
   sceneVariables = other.GetSceneVariables();
-  tests = other.tests;
 }
 
 void EventsFunctionsExtension::SerializeTo(SerializerElement& element, bool isExternal) const {
@@ -108,10 +107,6 @@ void EventsFunctionsExtension::SerializeTo(SerializerElement& element, bool isEx
       element.AddChild("eventsFunctions"));
   eventsFunctionsContainer.SerializeFoldersTo(
       element.AddChild("eventsFunctionsFolderStructure"));
-
-  if (tests.GetTestsCount() > 0) {
-    tests.SerializeTestsTo(element.AddChild("tests"));
-  }
 
   eventsBasedBehaviors.SerializeElementsTo(
       "eventsBasedBehavior", element.AddChild("eventsBasedBehaviors"));
@@ -267,11 +262,6 @@ void EventsFunctionsExtension::UnserializeExtensionImplementationFrom(
   }
   // Just in case
   eventsFunctionsContainer.AddMissingFunctionsInRootFolder();
-
-  tests.ClearTests();
-  if (element.HasChild("tests")) {
-    tests.UnserializeTestsFrom(element.GetChild("tests"));
-  }
 
   eventsBasedBehaviors.UnserializeElementsFrom(
       "eventsBasedBehavior", project, element.GetChild("eventsBasedBehaviors"));

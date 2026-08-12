@@ -1342,7 +1342,6 @@ const PropertyListEditor = React.forwardRef<Props, PropertyListEditorInterface>(
                       // $FlowFixMe[incompatible-type]
                       // $FlowFixMe[incompatible-exact]
                       <TreeView
-                        enableStickyAncestors
                         key={listKey}
                         ref={treeViewRef}
                         items={getTreeViewData(i18n)}

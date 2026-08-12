@@ -150,11 +150,7 @@ const getAssetShortHeaderSearchTerms = (assetShortHeader: AssetShortHeader) => {
 };
 
 const getPublicAssetPackSearchTerms = (assetPack: PublicAssetPack) =>
-  assetPack.name +
-  '\n' +
-  assetPack.tag +
-  '\n' +
-  assetPack.authors.map(author => author.name).join(', ');
+  assetPack.name + '\n' + assetPack.tag;
 
 const getPrivateAssetPackListingDataSearchTerms = (
   privateAssetPack: PrivateAssetPackListingData
@@ -475,42 +471,9 @@ export const AssetStoreStateProvider = ({
 
   const currentPage = shopNavigationState.getCurrentPage();
   const { chosenCategory, chosenFilters } = currentPage.filtersState;
-
-  // Map each public asset pack tag to its authors' names. The author is not
-  // stored on the asset short header itself, but assets inherit the authors of
-  // their pack (identified by the asset's first tag), so this lets assets be
-  // searched by their author's name.
-  const authorNamesByAssetPackTag = React.useMemo<{ [string]: string }>(
-    () => {
-      const authorNamesByTag: { [string]: string } = {};
-      if (publicAssetPacks) {
-        publicAssetPacks.starterPacks.forEach(assetPack => {
-          if (assetPack.authors.length > 0) {
-            authorNamesByTag[assetPack.tag] = assetPack.authors
-              .map(author => author.name)
-              .join(', ');
-          }
-        });
-      }
-      return authorNamesByTag;
-    },
-    [publicAssetPacks]
-  );
-  const getAssetShortHeaderSearchTermsWithAuthors = React.useCallback(
-    (assetShortHeader: AssetShortHeader) => {
-      const searchTerms = getAssetShortHeaderSearchTerms(assetShortHeader);
-      const assetPackTag = assetShortHeader.tags[0];
-      const authorNames = assetPackTag
-        ? authorNamesByAssetPackTag[assetPackTag]
-        : null;
-      return authorNames ? searchTerms + '\n' + authorNames : searchTerms;
-    },
-    [authorNamesByAssetPackTag]
-  );
-
   const assetShortHeadersSearchResults: ?Array<AssetShortHeader> = useSearchItem(
     assetShortHeadersById,
-    getAssetShortHeaderSearchTermsWithAuthors,
+    getAssetShortHeaderSearchTerms,
     searchText,
     chosenCategory,
     chosenFilters,
@@ -634,7 +597,7 @@ export const AssetStoreStateProvider = ({
       ) =>
         useSearchItem(
           assetShortHeadersById,
-          getAssetShortHeaderSearchTermsWithAuthors,
+          getAssetShortHeaderSearchTerms,
           searchText,
           chosenCategory,
           chosenFilters,
@@ -662,7 +625,6 @@ export const AssetStoreStateProvider = ({
       clearAllFilters,
       getAssetShortHeaderFromId,
       assetShortHeadersById,
-      getAssetShortHeaderSearchTermsWithAuthors,
     ]
   );
 

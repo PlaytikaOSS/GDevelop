@@ -82,12 +82,6 @@ export default class BrowserS3PreviewLauncher extends React.Component<
       error: null,
     });
 
-    if (previewOptions.isForGameplayTest) {
-      throw new Error(
-        'Gameplay tests are not supported with this legacy preview launcher.'
-      );
-    }
-
     const debuggerIds = previewOptions.isForInGameEdition
       ? this.getPreviewDebuggerServer().getExistingEmbeddedGameFrameDebuggerIds()
       : this.getPreviewDebuggerServer().getExistingPreviewDebuggerIds();

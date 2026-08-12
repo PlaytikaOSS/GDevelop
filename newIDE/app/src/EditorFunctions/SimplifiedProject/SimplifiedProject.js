@@ -56,14 +56,6 @@ type SimplifiedResource = {|
   metadata?: string,
 |};
 
-type SimplifiedTest = {|
-  testName: string,
-  type: string,
-  description?: string,
-  lastRunStatus?: string,
-  lastRunAt?: number,
-|};
-
 type SimplifiedProject = {|
   properties: {|
     name: string,
@@ -78,7 +70,6 @@ type SimplifiedProject = {|
   scenes: Array<SimplifiedScene>,
   globalVariables: Array<SimplifiedVariable>,
   resources: Array<SimplifiedResource>,
-  tests?: Array<SimplifiedTest>,
 |};
 
 type ProjectSpecificExtensionsSummary = {|
@@ -439,24 +430,6 @@ export const makeSimplifiedProjectBuilder = (
         project.getVariables()
       ),
     };
-
-    const projectTests = project.getTests();
-    if (projectTests.getTestsCount() > 0) {
-      simplifiedProject.tests = mapFor(0, projectTests.getTestsCount(), i => {
-        const test = projectTests.getTestAt(i);
-        const simplifiedTest: SimplifiedTest = {
-          testName: test.getName(),
-          type: test.getType(),
-        };
-        if (test.getDescription())
-          simplifiedTest.description = test.getDescription();
-        if (test.getLastRunStatus()) {
-          simplifiedTest.lastRunStatus = test.getLastRunStatus();
-          simplifiedTest.lastRunAt = test.getLastRunAt();
-        }
-        return simplifiedTest;
-      });
-    }
 
     return simplifiedProject;
   };

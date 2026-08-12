@@ -60,7 +60,6 @@ export type PreviewOptions = {|
     playerToken: string,
   },
   isForInGameEdition: boolean,
-  isForGameplayTest: boolean,
   editorId: string,
   getIsMenuBarHiddenInPreview: () => boolean,
   getIsAlwaysOnTopInPreview: () => boolean,
@@ -143,8 +142,6 @@ export interface PreviewDebuggerServer {
   registerCallbacks(callbacks: PreviewDebuggerServerCallbacks): () => void;
   registerEmbeddedGameFrame(window: WindowProxy): void;
   unregisterEmbeddedGameFrame(window: WindowProxy): void;
-  registerGameplayTestFrame(window: WindowProxy): void;
-  unregisterGameplayTestFrame(window: WindowProxy): void;
   closeAllConnections(): void;
 }
 

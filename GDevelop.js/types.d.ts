@@ -644,7 +644,6 @@ export class Project extends EmscriptenObject {
   insertNewExternalEvents(name: string, position: number): ExternalEvents;
   removeExternalEvents(name: string): void;
   getExternalEventsPosition(name: string): number;
-  getTests(): TestsContainer;
   hasExternalLayoutNamed(name: string): boolean;
   getExternalLayout(name: string): ExternalLayout;
   getExternalLayoutAt(index: number): ExternalLayout;
@@ -912,41 +911,6 @@ export class ExternalEvents extends EmscriptenObject {
   getEvents(): EventsList;
   serializeTo(element: SerializerElement): void;
   unserializeFrom(project: Project, element: SerializerElement): void;
-}
-
-export class Test extends EmscriptenObject {
-  constructor();
-  setName(name: string): void;
-  getName(): string;
-  setType(type: string): void;
-  getType(): string;
-  setDescription(description: string): void;
-  getDescription(): string;
-  setSource(source: string): void;
-  getSource(): string;
-  setLastRunStatus(lastRunStatus: string): void;
-  getLastRunStatus(): string;
-  setLastRunAt(lastRunAt: number): void;
-  getLastRunAt(): number;
-  setLastRunDurationMs(lastRunDurationMs: number): void;
-  getLastRunDurationMs(): number;
-  setLastRunFramesExecuted(lastRunFramesExecuted: number): void;
-  getLastRunFramesExecuted(): number;
-  serializeTo(element: SerializerElement): void;
-  unserializeFrom(element: SerializerElement): void;
-}
-
-export class TestsContainer extends EmscriptenObject {
-  insertNewTest(name: string, pos: number): Test;
-  insertTest(test: Test, pos: number): Test;
-  hasTestNamed(name: string): boolean;
-  getTest(name: string): Test;
-  getTestAt(pos: number): Test;
-  removeTest(name: string): void;
-  clearTests(): void;
-  moveTest(oldIndex: number, newIndex: number): void;
-  getTestsCount(): number;
-  getTestPosition(test: Test): number;
 }
 
 export class ExternalLayout extends EmscriptenObject {
@@ -1291,8 +1255,6 @@ export class InitialInstance extends EmscriptenObject {
   setSealed(seal: boolean): void;
   shouldKeepRatio(): boolean;
   setShouldKeepRatio(keepRatio: boolean): void;
-  isHidden(): boolean;
-  setHidden(hidden: boolean): void;
   getZOrder(): number;
   setZOrder(zOrder: number): void;
   getOpacity(): number;
@@ -2773,7 +2735,6 @@ export class EventsFunctionsExtension extends EmscriptenObject {
   getSceneVariables(): VariablesContainer;
   getEventsBasedBehaviors(): EventsBasedBehaviorsList;
   getEventsBasedObjects(): EventsBasedObjectsList;
-  getTests(): TestsContainer;
   serializeTo(element: SerializerElement): void;
   serializeToExternal(element: SerializerElement): void;
   unserializeFrom(project: Project, element: SerializerElement): void;

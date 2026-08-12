@@ -57,10 +57,8 @@ export type ParameterFieldProps = {|
   // The index of the parameter in the instruction or expression.
   parameterIndex?: number,
   onInstructionTypeChanged?: () => void,
-  editEventsFunctionParameter?: (VariableDialogOpeningProps => void) | null,
-  openEventsBasedEntityPropertyEditorDialog?:
-    | (VariableDialogOpeningProps => void)
-    | null,
+  editEventsFunctionParameter?: VariableDialogOpeningProps => void,
+  openEventsBasedEntityPropertyEditorDialog?: VariableDialogOpeningProps => void,
 |};
 
 export type FieldFocusFunction = (

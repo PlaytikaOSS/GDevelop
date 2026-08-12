@@ -1,5 +1,4 @@
 module.exports = {
-  env: config => ({ REACT_APP_ENV: '', ...config }),
   framework: {
     name: '@storybook/react-webpack5',
   },

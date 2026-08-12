@@ -16,7 +16,6 @@ import {
 import { type AskAiEditorInterface } from '../../AiGeneration/AskAiEditorContainer';
 import { type HTMLDataset } from '../../Utils/HTMLDataset';
 import { CustomObjectEditorContainer } from '../EditorContainers/CustomObjectEditorContainer';
-import { GameplayTestEditorContainer } from '../EditorContainers/GameplayTestEditorContainer';
 
 // Supported editors
 type EditorRef =
@@ -25,7 +24,6 @@ type EditorRef =
   | EventsFunctionsExtensionEditorContainer
   | ExternalEventsEditorContainer
   | ExternalLayoutEditorContainer
-  | GameplayTestEditorContainer
   | ResourcesEditorContainer
   | SceneEditorContainer
   | HomePageEditorInterface
@@ -40,7 +38,6 @@ export type EditorKind =
   | 'external events'
   | 'events functions extension'
   | 'custom object'
-  | 'gameplay-test'
   | 'debugger'
   | 'resources'
   | 'global-search'
@@ -291,7 +288,7 @@ export const popOutTab = (
     editors: remainingEditors,
     currentTab:
       newCurrentTabIndex === -1
-        ? Math.max(0, Math.min(sourceTabIndex, remainingEditors.length - 1))
+        ? Math.max(0, sourceTabIndex - 1)
         : newCurrentTabIndex,
   };
 
@@ -395,14 +392,9 @@ export const closeTabsExceptIf = (
       editors: paneRemainingEditors,
 
       // Keep the focus on the current editor tab, or if it was closed
-      // focus the tab that took its place (or the last one).
+      // go back to the first tab.
       currentTab:
-        currentEditorTabNewIndex === -1
-          ? Math.max(
-              0,
-              Math.min(pane.currentTab, paneRemainingEditors.length - 1)
-            )
-          : currentEditorTabNewIndex,
+        currentEditorTabNewIndex === -1 ? 0 : currentEditorTabNewIndex,
     };
   }
 
@@ -617,24 +609,6 @@ export const closeExternalEventsTabs = (
 
     return true;
   });
-};
-
-export const closeGameplayTestTabs = (
-  state: EditorTabsState,
-  gameplayTestProjectItemName: string
-): {
-  panes: {
-    [paneIdentifier: string]: { currentTab: number, editors: Array<EditorTab> },
-  },
-} => {
-  return closeTabsExceptIf(
-    state,
-    editorTab =>
-      !(
-        editorTab.kind === 'gameplay-test' &&
-        editorTab.projectItemName === gameplayTestProjectItemName
-      )
-  );
 };
 
 export const closeEventsFunctionsExtensionTabs = (

@@ -18,13 +18,9 @@ export type ObjectGroupsOutsideEditorChanges = {|
   scene: gdLayout,
 |};
 
-// Only scenes and gameplay tests are renamed outside the editor for now;
-// extend as needed.
-export type RenamableProjectItemKind = 'scene' | 'gameplay-test';
+// Only scenes are renamed outside the editor for now; extend as needed.
+export type RenamableProjectItemKind = 'scene';
 
-// For 'gameplay-test', the names are the tab "project item names" (the test
-// name for a project test, `ExtensionName::TestName` for an extension test —
-// see `getGameplayTestProjectItemName`).
 export type ProjectItemRenamedOutsideEditorChanges = {|
   kind: RenamableProjectItemKind,
   oldName: string,
@@ -35,13 +31,6 @@ export type ProjectItemRenamedOutsideEditorChanges = {|
 // valid (e.g. to let editors close any tab bound to it by object identity).
 export type WillDeleteSceneChanges = {|
   scene: gdLayout,
-|};
-
-// Called before the gameplay test is actually deleted, so any tab bound to it
-// can be closed first. The name is the tab "project item name" (the test name
-// for a project test, `ExtensionName::TestName` for an extension test).
-export type WillDeleteGameplayTestChanges = {|
-  gameplayTestProjectItemName: string,
 |};
 
 // Called before the object is actually deleted, so editors can still safely

@@ -70,10 +70,6 @@ export const NoProjectOpen = (): React.Node => {
                     'onDeleteEventsFunctionsExtension'
                   )}
                   onDeleteExternalEvents={action('onDeleteExternalEvents')}
-                  onDeleteGameplayTest={action('onDeleteGameplayTest')}
-                  onRenameGameplayTest={action('onRenameGameplayTest')}
-                  onOpenGameplayTest={action('onOpenGameplayTest')}
-                  onRunGameplayTest={action('onRunGameplayTest')}
                   onRenameLayout={action('onRenameLayout')}
                   onRenameExternalLayout={action('onRenameExternalLayout')}
                   onRenameEventsFunctionsExtension={action(
@@ -150,10 +146,6 @@ export const ProjectOpen = (): React.Node => {
                     'onDeleteEventsFunctionsExtension'
                   )}
                   onDeleteExternalEvents={action('onDeleteExternalEvents')}
-                  onDeleteGameplayTest={action('onDeleteGameplayTest')}
-                  onRenameGameplayTest={action('onRenameGameplayTest')}
-                  onOpenGameplayTest={action('onOpenGameplayTest')}
-                  onRunGameplayTest={action('onRunGameplayTest')}
                   onRenameLayout={action('onRenameLayout')}
                   onRenameExternalLayout={action('onRenameExternalLayout')}
                   onRenameEventsFunctionsExtension={action(
