@@ -1,0 +1,25 @@
+Extensions/Spine/managers/pixi-spine-atlas-manager.ts
+  s_9aced80d31a485::t_1c7db83aada4c0 11-15,29-30,58,60,63,68,71,73,79,83,89-90,93-94,97,135-138,146,156-157,164-166,187,189,192,196,200-204,206,215-218,221
+  s_9aced80d31a485::t_aec8c2e238d7e9 190-191
+Extensions/Spine/tests/SpineManager.spec.js
+  s_9aced80d31a485::t_3609a639f2fda4 92-98,100,104-108,113-116,118-144,155,157,163,168-174,179,198,201,204,220,225-232,252,263,268,285,290,293,295,298,303,327,334-335,400,408,439,445,490,493-525,530-584,587-588,592-596,600-627
+  s_9aced80d31a485::t_aec8c2e238d7e9 526-529,585-586,589-591,597-599
+Extensions/Spine/managers/pixi-spine-manager.ts
+  s_9aced80d31a485::t_1c7db83aada4c0 22,34-35,72,79,83-86,92-93,96,167-168,175,196,198-200,204,218,227-228,231
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.16",
+  "base_commit_sha": "f0614f25383e0552a659b24e5c2a2dfb696df607",
+  "prompts": {},
+  "sessions": {
+    "s_9aced80d31a485": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "02c69e67-0721-4ca6-8abb-374f54e15dde",
+        "model": "unknown"
+      },
+      "human_author": "luciuses <luciuses@gmail.com>"
+    }
+  }
+}
